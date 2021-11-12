@@ -1,7 +1,7 @@
 clear all;
 
-minFreq = 10000;
-maxFreq = 20000;
+minFreq = 7000;
+maxFreq = 14000;
 numFreq = 40;
 
 % minFreq = 6000;
@@ -51,7 +51,7 @@ end
 %% make wave.txt files
 
 fileFolder = 'D:\DCN\AudioFiles\PureTones\BF_ToneSequence\';
-fileName = 'DCN_ToneSequence_10Kto20K_20DBSPL_200msDuration_10msRamps_50msInterval.WAV';
+fileName = 'DCN_ToneSequence_7Kto14K_20DBSPL_200msDuration_10msRamps_50msInterval.WAV';
 filePath = fullfile(fileFolder, fileName);
 audiowrite(filePath, Tone, Fs);
 
@@ -111,14 +111,14 @@ save(FullPath, 'noise', 'randomAmp');
 
 %% generate and save rate level function audio files
 
-BF = 18000;
+BF = 10000;
 startDBSPL = 10;
 stopDBSPL = 70;
 
 % this part generates rate level function file for BF
 Sound = generateRateLevelAudioFile(BF, startDBSPL, stopDBSPL);
 fileFolder = 'D:\DCN\AudioFiles\RateLevelFunction\';
-fileName = 'BF18KHz_10to70DBSPL_1DBSPLInterval_RateLevelFunction.txt';
+fileName = 'BF10KHz_10to70DBSPL_1DBSPLInterval_RateLevelFunction.txt';
 
 FullPath = fullfile(fileFolder, fileName);
 fid = fopen(FullPath, 'w');

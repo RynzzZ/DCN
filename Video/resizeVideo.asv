@@ -1,0 +1,44 @@
+function resizeVideo(vidPath, oldVidName, newVidName, newWidth, newHeight, topOffset, leftOffset)
+
+% load the video
+v = VideoReader(fullfile(vidPath, oldVidName));
+
+while hasFrame(v)
+    frame = readFrame(v);
+end
+
+% check if the new dimensions and offsets work
+if topOffset + newHeight + 1 > v.Height
+    error('topOffset + newHeight + 1 exceeds the original height!');
+end
+
+if leftOffset + newWidth + 1 > v.Width
+    error('leftOffset + newWidth + 1 exceeds the original width!');
+end
+
+% convert new dimension and offsets into start and stop index to resize
+% each frame
+widStartInd = 1 + leftOffset;
+widStopInd = leftOffset + newWidth;
+hgtStartInd = 1 + topOffset;
+hgtStopInd = topOffset + newHeight;
+
+% open video writter
+vidWriter = VideoWriter(fullfile(vidPath, newVidName));
+open(vidWriter);
+vidWriter.FrameRate = v.FrameRate;
+vidWriter.VideoBitsPerPixel = v.BitsPerPixel;
+
+
+% resize the vid
+for i = 1:v.NumFrames
+    frame = read(v, i);  
+    frameNew = frame(hgtStartInd:hgtStopInd, widStartInd:widStopInd, :);
+    writeVideo(vidWriter, frameNew);
+    
+    if rand(1)<0.3
+        disp(num2str(100*i/v.NumFrames))
+end
+
+
+end
