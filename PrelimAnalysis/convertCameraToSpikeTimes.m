@@ -8,7 +8,7 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 
 % initializations
 rootFolder = 'Z:\Qianyun\DCN\';
-gitFolder = 'D:\DCN_Project\Github\';
+gitFolder = 'D:\DCN_Project\Github\DCN\';
 sessionFolder = fullfile(rootFolder, 'Data', session);
 
 % load both Bonsai and Spike camera timestamp data
