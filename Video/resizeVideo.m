@@ -1,6 +1,7 @@
 function resizeVideo(vidPath, oldVidName, newVidName, newWidth, newHeight, topOffset, leftOffset)
 
 % load the video
+addpath(fullfile(vidPath));
 v = VideoReader(fullfile(vidPath, oldVidName));
 
 % check if the new dimensions and offsets work
