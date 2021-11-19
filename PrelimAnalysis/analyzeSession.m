@@ -1,7 +1,7 @@
 function analyzeSession(session, varargin)
 % settings
-s.analyze = 'all'; % use 'spike' to only analyze spike files, use 'camera' to only analyze camera files. 'all' will analyze both.
-
+s.analyze = 'all';  % use 'spike' to only analyze spike files, use 'camera' to only analyze camera files. 'all' will analyze both.
+s.foodMinInterval = 5;  % unit: sec
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
 
 
@@ -81,15 +81,20 @@ if analyzeSpike
     spike.micSignalTimes = spikeTemp.Mic.times;
     
     spike.cameraTriggerTimes = spikeTemp.CamTrig.times;
-    spike.foodTriggerTimes = spikeTemp.Food.times;
-    spike.totalFoodNum = length(spike.foodTriggerTimes);
     spike.audioTriggerTimes = spikeTemp.AudioSyn.times;
+    
+    % clean the food trigger - get rid of false trigger (trigger but no
+    % food delivered)
+    spike.foodTriggerTimes = spikeTemp.Food.times;
+    inds = find(diff(spike.foodTriggerTimes)<s.foodMinInterval);
+    spike.foodTriggerTimes(inds) = [];
+    spike.totalFoodNum = length(spike.foodTriggerTimes);
     
     spike.keyboardInput = char(spikeTemp.Keyboard.codes(:, 1));
     spike.keyboardTimes = spikeTemp.Keyboard.times;
     
-    save(fullfile(sessionFolder, 'spikeAnalyzed.mat'), 'spike');
-    fprintf('spikeAnalyzed.mat saved in %s', sessionFolder)    
+    save(fullfile(sessionFolder, 'spikeAnalyzed.mat'), 'spike', '-v7.3');
+    fprintf('spikeAnalyzed.mat saved in %s\n', sessionFolder)    
 end
 
 

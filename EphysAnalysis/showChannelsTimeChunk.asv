@@ -57,8 +57,10 @@ data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:en
     'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
 
 % plot channels at specific time
-startInd = find(info.convertedEphysTimestamps>startTimes,1,'first');
-stopInd = find(info.convertedEphysTimestamps<stopTimes,1,'last');
+
+
+startInd = find(info.convertedEphysTimestamps>startTimes(i),1,'first');
+stopInd = find(info.convertedEphysTimestamps<stopTimes(i),1,'last');
 traces = getVoltage(data, selectedChannels, startInd:stopInd);
 
 if ~s.dataOnly
