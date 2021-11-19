@@ -24,8 +24,6 @@ for i = 1:randomSampleNum
     stopTime = randomFoodTriggerTimes(i) + 10;
     
     % plot mic signal
-    yoffset = 0;
-    
     startInd = find(spike.micSignalTimes > startTime, 1, 'first');
     stopInd = find(spike.micSignalTimes < stopTime, 1, 'last');
     ind = startInd:stopInd;
@@ -39,12 +37,9 @@ for i = 1:randomSampleNum
     startInd = find(videoTracking.frameTimestamps > startTime, 1, 'first');
     stopInd = find(videoTracking.frameTimestamps < stopTime, 1, 'last');
     ind = startInd:stopInd;
-    ind(videoTracking.jaw_lower_confidence(ind)<0.5) = [];
-    
-    jawDistance = sqrt((videoTracking.jaw_upper_x(ind) - videoTracking.jaw_lower_x(ind)).^2 +...
-        (videoTracking.jaw_upper_y(ind) - videoTracking.jaw_lower_y(ind)).^2 );
-    
-    plot(videoTracking.frameTimestamps(ind) - randomFoodTriggerTimes(i), jawDistance/max(jawDistance) + yoffset);
+        
+    plot(videoTracking.frameTimestamps(ind) - randomFoodTriggerTimes(i),...
+        videoTracking.jawDistance(ind)/max(videoTracking.jawDistance(ind)) + yoffset);
     
     
     % plot tongue movement
@@ -54,10 +49,7 @@ for i = 1:randomSampleNum
     stopInd = find(videoTracking.frameTimestamps < stopTime, 1, 'last');
     ind = startInd:stopInd;
     
-    tongue = zeros(1, length(ind));
-    tongue(videoTracking.tongue_confidence(ind)>0.5) = 1;
-    
-    plot(videoTracking.frameTimestamps(ind) - randomFoodTriggerTimes(i), tongue + yoffset);
+    plot(videoTracking.frameTimestamps(ind) - randomFoodTriggerTimes(i), videoTracking.tongueExist(ind) + yoffset);
     plot(videoTracking.frameTimestamps(ind) - randomFoodTriggerTimes(i), videoTracking.tongue_confidence(ind) + yoffset);
     
     % plot DCN LFP
@@ -71,6 +63,9 @@ for i = 1:randomSampleNum
     ylim([-1, 4]);
     
     xlabel('time (sec, 0 = food dispenser trigger)');
+    legend('mic signal', 'jaw movement', 'tongue', 'tongue confidence', 'DCN LFP');
+    ax = gca;
+    ax.YAxis.Visible = 'off'; % remove y-axis
 end
 
 

@@ -2,8 +2,6 @@ function analyzeSession(session, varargin)
 % settings
 s.analyze = 'all';  % use 'spike' to only analyze spike files, use 'camera' to only analyze camera files. 'all' will analyze both.
 s.foodMinInterval = 5;  % unit: sec
-s.jawConfidenceThreshold = 0.5;
-s.tongueConfidenceThreshold = 0.5;
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
 
 
@@ -55,19 +53,13 @@ if analyzeCamera
     
     % calculate jaw movement (pixel distance b/w upper jaw and lower jaw);
     % only include points with good tracking confidence
-    ind = find(videoTracking.jaw_lower_confidence > s.jawConfidenceThreshold);
-    videoTracking.jawDistance = nan(size(videoTracking, 1), 1);
-    videoTracking.jawDistance(ind) = sqrt((videoTracking.jaw_upper_x(ind) - videoTracking.jaw_lower_x(ind)).^2 +...
-        (videoTracking.jaw_upper_y(ind) - videoTracking.jaw_lower_y(ind)).^2 );
+    ind = find(videoTracking.jaw_lower_confidence>0.5 && videoTrackingcking.jaw_upper_confidence > 0.5);
     
-    % make the tongue movement into a binary format (exist in the frame or
-    % not)
-    videoTracking.tongueExist = zeros(size(videoTracking, 1), 1);
-    ind = find(videoTracking.tongue_confidence > s.tongueConfidenceThreshold);
-    videoTracking.tongueExist(ind) = 1;
+    videoTracking.jawDistance = sqrt((videoTracking.jaw_upper_x(ind) - videoTracking.jaw_lower_x(ind)).^2 +...
+        (videoTracking.jaw_upper_y(ind) - videoTracking.jaw_lower_y(ind)).^2 );
         
     save(fullfile(sessionFolder, 'cameraAnalyzed.mat'), 'videoTracking');
-    fprintf('cameraAnalyzed.mat saved in %s\n', sessionFolder)
+    fprintf('cameraAnalyzed.mat saved in %s', sessionFolder)
 end
 
 
