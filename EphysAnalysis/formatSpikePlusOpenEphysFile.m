@@ -6,12 +6,12 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 
 % initialization 
 rootFolder = 'Z:\Qianyun\DCN\';
-gitFolder = 'D:\DCN_Project\Github\';
+gitFolder = 'D:\DCN_Project\Github\DCN';
 sessionFolder = fullfile(rootFolder, 'Data', session);
 
 % add path to CED code
 
-setenv('CEDS64ML', 'D:\DCN_Project\Github\Spike2\Spike2_MATLAB_Interface\CEDS64ML');
+setenv('CEDS64ML', 'D:\DCN_Project\Github\DCN\Spike2\Spike2_MATLAB_Interface\CEDS64ML');
 
 cedpath = getenv('CEDS64ML');
 addpath(cedpath);

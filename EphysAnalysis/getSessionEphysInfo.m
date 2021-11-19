@@ -5,7 +5,7 @@ function sessionEphysInfo = getSessionEphysInfo(session)
 
 % get name of ephys folder
 rootFolder = 'Z:\Qianyun\DCN\';
-gitFolder = 'D:\DCN_Project\Github\';
+gitFolder = 'D:\DCN_Project\Github\DCN';
 sessionFolder = fullfile(rootFolder, 'Data', session);
 sessionFolderFiles = dir(fullfile(rootFolder, 'Data', session, '20*'));
 ephysFolder = [sessionFolderFiles([sessionFolderFiles.isdir] == 1).name];
