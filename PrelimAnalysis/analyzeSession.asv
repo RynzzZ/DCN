@@ -60,9 +60,9 @@ if analyzeCamera
     videoTracking.jawDistance(ind) = sqrt((videoTracking.jaw_upper_x(ind) - videoTracking.jaw_lower_x(ind)).^2 +...
         (videoTracking.jaw_upper_y(ind) - videoTracking.jaw_lower_y(ind)).^2 );
     
-    % interpolate the jaw movement to get rid of nans, method = 'spline'
-    inds = find(~isnan(videoTracking.jawDistance));
-    videoTracking.jawDistance = interp1(inds, videoTracking.jawDistance(inds), 1:length(videoTracking.jawDistance), 'spline')';
+    % interpolate the jaw movement to get rid of nans
+    
+    videoTracking.jawDistance = interp1(1:length(videoTracking.jawDistance), videoTracking.jawDistance, 
     
     % make the tongue movement into a binary format (exist in the frame or
     % not)

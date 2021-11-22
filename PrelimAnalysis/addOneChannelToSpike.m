@@ -1,12 +1,16 @@
-function formatSpikePlusOpenEphysFile(session, varargin)
+function addOneChannelToSpike(folderPath, oldFileName, newFileName, data, timestamps, varargin)
 
 % settings
+s.channelTitle = 'Jaw';
+s.channelUnit = 'Pixel';
+
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
 
 % initialization 
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN';
-sessionFolder = fullfile(rootFolder, 'Data', session);
+filePath = fullfile(folderPath, oldFileName);
+newFilePath = fullfile(folderPath, newFileName);
 
 % add path to CED code
 setenv('CEDS64ML', 'D:\DCN_Project\Github\DCN\Spike2\Spike2_MATLAB_Interface\CEDS64ML');
@@ -16,18 +20,15 @@ addpath(cedpath);
 % load ceds64int.dll
 CEDS64LoadLib( cedpath );
 
-% Open the .smr spike file in the session folder and copy it to a new .smr
-% file
-fhand1 = CEDS64Open( fullfile(sessionFolder, [session(1:8) '_000.smr']) );
+% Open the old .smr spike file in the session folder and copy it to a new
+% .smr file.
+fhand1 = CEDS64Open(filePath);
 if (fhand1 <= 0);  CEDS64ErrorMessage(fhand1); unloadlibrary ceds64int; return; end
 maxchans = CEDS64MaxChan( fhand1 );
 
 % Create the new .smr file - Spike + OpenEphys daya together
-load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'));
-ephysChanNumber = sessionEphysInfo.channelNum;
-fhand2 = CEDS64Create( fullfile(sessionFolder, 'SpikePlusOpenEphys.smr'), maxchans + ephysChanNumber, 2 );
+fhand2 = CEDS64Create(newFilePath, maxchans + 1, 2 );
 if (fhand2 <= 0);  CEDS64ErrorMessage(fhand2); unloadlibrary ceds64int; return; end
-
 % Set timebase in new file
 timebase = CEDS64TimeBase( fhand1 );
 if timebase < 0, CEDS64ErrorMessage(timebase), return; end
@@ -120,64 +121,35 @@ for m = 1:maxchans
     end
 end
 
-% write open ephys data to new channels in the SpikePlusOpenEphys.smr file
-% get channel maps 
-mapFile = sessionEphysInfo.mapFile;
-load(fullfile('Z:\obstacleData\ephys\channelMaps\kilosort', [mapFile, '.mat']), 'channelNum_OpenEphys');
-if ephysChanNumber ~= length(channelNum_OpenEphys)
-    warning('channelNum_OpenEphys does NOT match ephysChanNumber!');
-end
 
+% calculate channel divide rate for the new channel
+dataStartTime = timestamps(1);
+dataEndTime = timestamps(end);
+dataSamps = length(timestamps);
+dataChanDiv = (dataEndTime - dataStartTime)/(dataSamps*timebase);
+sTime = CEDS64SecsToTicks( fhand2, dataStartTime );
 
-% function to extract voltage from binary file
-getVoltage = @(data) ...
-    double(data)*sessionEphysInfo.bitVolts; % extract voltage from memmapfile, converting to votlage, highpassing, and only return specific channel
+dataOriginalFs = 1/(dataChanDiv*timebase);
+dataDesiredFs = 1/(round(dataChanDiv)*timebase);
+[p, q] = rat(dataDesiredFs/dataOriginalFs);
 
-% load data
-contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
-data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
-    'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
+% add the data channel to the original spike .smr file
+wavechan = CEDS64GetFreeChan( fhand2 );
+disp(['  newchan = ', num2str(wavechan)]);
+createret = CEDS64SetWaveChan( fhand2, wavechan, round(dataChanDiv), 1, dataDesiredFs);
+if createret ~= 0, warning('waveform channel not created correctly'); end
+CEDS64ChanTitle( fhand2, wavechan, s.channelTitle);
+CEDS64ChanComment( fhand2, wavechan, '');
+CEDS64ChanUnits( fhand2, wavechan, s.channelUnit );
 
-% calculate ephys start and stop time (in spike timestamps) and channel
-% divide rate.
-ephysStartTime = sessionEphysInfo.convertedEphysTimestamps(1);
-ephysEndTime = sessionEphysInfo.convertedEphysTimestamps(end);
-ephysSamps = length(sessionEphysInfo.convertedEphysTimestamps);
-ephysChanDiv = (ephysEndTime - ephysStartTime)/(ephysSamps*timebase);
-sTime = CEDS64SecsToTicks( fhand2, ephysStartTime );
+% prepare data for writing into the file
+waveDataResampled = resample(data,p,q); % resample the data to fit into the timebase of the spike file
+waveDataNew = int16(waveDataResampled); % convert back to int16 type
 
-ephysOriginalFs = 1/(ephysChanDiv*timebase);
-ephysDesiredFs = 1/(round(ephysChanDiv)*timebase);
-[p, q] = rat(ephysDesiredFs/ephysOriginalFs);
+% write the data into the file
+fillret = CEDS64WriteWave( fhand2, wavechan, waveDataNew, sTime );
+if fillret < 0, warning(['Wave Channel ', num2str(wavechan), ' not filled correctly']); end
 
-for i = 1:length(channelNum_OpenEphys)    
-    
-    disp(num2str(i));
-    
-    % create adc channel
-    wavechan = CEDS64GetFreeChan( fhand2 );
-    disp(['  wavechan = ', num2str(wavechan)]);
-    % fs = 1/mean(diff(sessionEphysInfo.convertedEphysTimestamps));
-    createret = CEDS64SetWaveChan( fhand2, wavechan, round(ephysChanDiv), 1, ephysDesiredFs);
-    if createret ~= 0, warning('waveform channel not created correctly'); end
-    CEDS64ChanTitle( fhand2, wavechan, ['ch ' num2str(i)]); % 1 being the most top recording site on the probe, 32/64 being the most bottom one.
-    CEDS64ChanComment( fhand2, wavechan, '');
-    CEDS64ChanUnits( fhand2, wavechan, 'Volt' );
-    
-    % prepare ephys data for writing into the file
-    waveDataVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(i), :));
-    waveDataResampled = resample(waveDataVoltage,p,q); % resample the data to fit into the timebase of the spike file
-    waveDataNew = int16(waveDataResampled/sessionEphysInfo.bitVolts); % convert back to int16 type
-    
-    
-    % write ephys data into the file
-    fillret = CEDS64WriteWave( fhand2, wavechan, waveDataNew, sTime );
-    if fillret < 0, warning(['Wave Channel ', num2str(wavechan), ' not filled correctly']); end
-    
-    
-end
-
-%
 % close the file
 CEDS64CloseAll();
 % unload ceds64int.dll

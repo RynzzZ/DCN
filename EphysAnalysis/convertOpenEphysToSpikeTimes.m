@@ -12,7 +12,7 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 
 % initialization 
 rootFolder = 'Z:\Qianyun\DCN\';
-gitFolder = 'D:\DCN_Project\Github\';
+gitFolder = 'D:\DCN_Project\Github\DCN';
 
 
 % getting ephys session info

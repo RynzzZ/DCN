@@ -1,4 +1,4 @@
-function formatSpikePlusOpenEphysFile(session, varargin)
+function addOneChannelToSpike(folderPath, oldFileName, newFileName, data, timestamps, varargin)
 
 % settings
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
@@ -6,7 +6,8 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 % initialization 
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN';
-sessionFolder = fullfile(rootFolder, 'Data', session);
+filePath = fullfile(folderPath, oldFileName);
+newFilePath = fullfile(folderPath, newFileName);
 
 % add path to CED code
 setenv('CEDS64ML', 'D:\DCN_Project\Github\DCN\Spike2\Spike2_MATLAB_Interface\CEDS64ML');
@@ -16,18 +17,15 @@ addpath(cedpath);
 % load ceds64int.dll
 CEDS64LoadLib( cedpath );
 
-% Open the .smr spike file in the session folder and copy it to a new .smr
-% file
-fhand1 = CEDS64Open( fullfile(sessionFolder, [session(1:8) '_000.smr']) );
+% Open the old .smr spike file in the session folder and copy it to a new
+% .smr file.
+fhand1 = CEDS64Open(filePath);
 if (fhand1 <= 0);  CEDS64ErrorMessage(fhand1); unloadlibrary ceds64int; return; end
 maxchans = CEDS64MaxChan( fhand1 );
 
 % Create the new .smr file - Spike + OpenEphys daya together
-load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'));
-ephysChanNumber = sessionEphysInfo.channelNum;
-fhand2 = CEDS64Create( fullfile(sessionFolder, 'SpikePlusOpenEphys.smr'), maxchans + ephysChanNumber, 2 );
+fhand2 = CEDS64Create(newFilePath, maxchans + 1, 2 );
 if (fhand2 <= 0);  CEDS64ErrorMessage(fhand2); unloadlibrary ceds64int; return; end
-
 % Set timebase in new file
 timebase = CEDS64TimeBase( fhand1 );
 if timebase < 0, CEDS64ErrorMessage(timebase), return; end
@@ -120,29 +118,12 @@ for m = 1:maxchans
     end
 end
 
-% write open ephys data to new channels in the SpikePlusOpenEphys.smr file
-% get channel maps 
-mapFile = sessionEphysInfo.mapFile;
-load(fullfile('Z:\obstacleData\ephys\channelMaps\kilosort', [mapFile, '.mat']), 'channelNum_OpenEphys');
-if ephysChanNumber ~= length(channelNum_OpenEphys)
-    warning('channelNum_OpenEphys does NOT match ephysChanNumber!');
-end
 
 
-% function to extract voltage from binary file
-getVoltage = @(data) ...
-    double(data)*sessionEphysInfo.bitVolts; % extract voltage from memmapfile, converting to votlage, highpassing, and only return specific channel
-
-% load data
-contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
-data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
-    'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
-
-% calculate ephys start and stop time (in spike timestamps) and channel
-% divide rate.
-ephysStartTime = sessionEphysInfo.convertedEphysTimestamps(1);
-ephysEndTime = sessionEphysInfo.convertedEphysTimestamps(end);
-ephysSamps = length(sessionEphysInfo.convertedEphysTimestamps);
+% calculate channel divide rate for the new channel
+dataStartTime = timestamps(1);
+dataEndTime = timestamps(end);
+ephysSamps = length(timestamps);
 ephysChanDiv = (ephysEndTime - ephysStartTime)/(ephysSamps*timebase);
 sTime = CEDS64SecsToTicks( fhand2, ephysStartTime );
 
@@ -182,5 +163,7 @@ end
 CEDS64CloseAll();
 % unload ceds64int.dll
 unloadlibrary ceds64int;
+
+
 
 end
