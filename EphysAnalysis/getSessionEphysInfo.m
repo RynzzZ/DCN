@@ -32,9 +32,13 @@ sessionEphysInfo.fs = info.header.sampleRate;
 sessionEphysInfo.bitVolts = info.header.bitVolts;
 
 % get number of samples
-file = fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']);
-temp = dir(file);
-sessionEphysInfo.smps = temp.bytes/2/sessionEphysInfo.channelNum; % 2 bytes per sample
+if ~exist(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), 'file')
+    error('.dat file NOT exist! Run packContFile_QZ.py first!');
+else
+    file = fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']);
+    temp = dir(file);
+    sessionEphysInfo.smps = temp.bytes/2/sessionEphysInfo.channelNum; % 2 bytes per sample
+end
 
 % channel used for synchronization
 sessionEphysInfo.syncSignal = ephysInfo.syncSignal{strcmp(session, ephysInfo.session)};

@@ -34,12 +34,12 @@ if analyzeCamera
     % check if the session folder has all the files needed
     if ~exist(fullfile(rootFolder, 'Data', session, 'cameraTimestamps.csv'), 'file') || ~exist(fullfile(rootFolder, 'Data', session, 'Spike.mat'), 'file')
         error('cameraTimestamps.csv or Spike.mat is missing! Can not proceed!');
-    elseif ~exist(fullfile(rootFolder, 'Data', session, 'behaviorVedio00_tracking.csv'), 'file')
+    elseif ~exist(fullfile(rootFolder, 'Data', session, 'behaviorVideo00_tracking.csv'), 'file')
         error('Behavior video tracking is missing! Can not proceed!');
     end
     
     % load video tracking spreadsheet
-    videoTracking = readtable(fullfile(rootFolder, 'Data', session, 'behaviorVedio00_tracking.csv'));
+    videoTracking = readtable(fullfile(rootFolder, 'Data', session, 'behaviorVideo00_tracking.csv'));
     videoTracking.Properties.VariableNames{1} = 'frameNum';
     videoTracking.frameNum = videoTracking.frameNum + 1;
     
