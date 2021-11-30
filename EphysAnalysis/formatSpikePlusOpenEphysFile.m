@@ -25,7 +25,7 @@ maxchans = CEDS64MaxChan( fhand1 );
 % Create the new .smr file - Spike + OpenEphys daya together
 load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'));
 ephysChanNumber = sessionEphysInfo.channelNum;
-fhand2 = CEDS64Create( fullfile(sessionFolder, 'SpikePlusOpenEphys.smr'), maxchans + ephysChanNumber, 2 );
+fhand2 = CEDS64Create( fullfile(sessionFolder, [session, '_SpikePlusOpenEphys.smr']), maxchans + ephysChanNumber, 2 );
 if (fhand2 <= 0);  CEDS64ErrorMessage(fhand2); unloadlibrary ceds64int; return; end
 
 % Set timebase in new file
