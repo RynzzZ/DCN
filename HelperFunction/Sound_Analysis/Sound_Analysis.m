@@ -83,6 +83,7 @@ ylabel('Magnitude, dBV^2')
 
 %% plot the signal spectrogram
 % time-frequency analysis
+
 winlen = 1024;
 win = blackman(winlen, 'periodic');
 hop = round(winlen/4);
@@ -92,7 +93,8 @@ STPS = 10*log10(STPS);
 
 % plot the spectrogram
 figure(3)
-surf(T, F, STPS)
+surf(T, F, STPS);
+colormap jet
 shading interp
 axis tight
 box on
@@ -101,6 +103,7 @@ set(gca, 'FontName', 'Times New Roman', 'FontSize', 14)
 xlabel('Time, s')
 ylabel('Frequency, Hz')
 title('Spectrogram of the signal')
+
 
 [~, cmax] = caxis;
 caxis([max(-120, cmax-90), cmax])
