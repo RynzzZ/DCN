@@ -1,8 +1,12 @@
 function analyzeTrial(session, varargin)
 
 % This function breaks session data into each 'food' trial.
-% Save data into 'trialAnalyzed.mat'. Each row is one 'food' trial.
-
+% (1) Save data into 'trialAnalyzed.mat'. 
+%       - trial table: each row is one 'food' trial.
+%       - chewingCrossCorr: each row is the cross corr b/w chewing jaw traces and the corresponding LFP for one 'food' trial. Length: [-maxLag:maxLag]
+%       - allCrunchLFP: each row is the smoothed LFP centered around the big crunch for one 'food' trial. Length: [-s.crunchTimeWindow : s.crunchTimeWindow]*s.ephysFs
+% (2) Plot series of crunch and chewing plots for each trial.
+% (3) Plots are saved in the 'trialFigs' folder in the session folder.
 
 % settings
 s.hasLFP = true; % whether this session's recording contains a good LFP channel
@@ -124,8 +128,7 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
         trial.crunchLFP_MaxValLoc(i) = maxPeakLoc;
         trial.crunchLFP_MaxValTime(i) = sessionEphysInfo.convertedEphysTimestamps(maxPeakLoc);
         trial.crunchLFP_MinValLoc(i) = minPeakLoc;
-        trial.crunchLFP_MinValTime(i) = sessionEphysInfo.convertedEphysTimestamps(minPeakLoc);
-        
+        trial.crunchLFP_MinValTime(i) = sessionEphysInfo.convertedEphysTimestamps(minPeakLoc);        
         
         %%%%%%%%%%%%%%%%%%%%% Processing chewing %%%%%%%%%%%%%%%%%%%%%%%%%%%
         trialStartTime = spike.foodTriggerTimes(i) - 0.1;
@@ -169,7 +172,6 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
         chewingChunkJaw_interp = interp1(cameraTimestamps, chewingChunkJaw, ephysTimestamps);
         chewingChunkLFP_xcorr = smoothedChewingChunkLFP(~isnan(chewingChunkJaw_interp));
         chewingChunkJaw_xcorr = chewingChunkJaw_interp(~isnan(chewingChunkJaw_interp));
-        
         
         [c, lags] = xcorr(chewingChunkJaw_xcorr, chewingChunkLFP_xcorr, maxLag);
         chewingCrossCorr(i, :) = c;
@@ -394,50 +396,50 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
         end
         
     end   
-    save(fullfile(sessionFolder, 'trialAnalyzed.mat'), 'trial', 'chewingCrossCorr');
+    
+    save(fullfile(sessionFolder, 'trialAnalyzed.mat'), 'trial', 'chewingCrossCorr', 'allCrunchLFP');
+    
+    % plot the cross corr curve b/w chewing jaw distance and LFP over all the trials in
+    % this session
+    figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+    x = [-maxLag:maxLag]/s.ephysFs;
+    y = mean(chewingCrossCorr);
+    err = std(chewingCrossCorr)/sqrt(size(chewingCrossCorr, 1));
+    
+    shadedErrorBar(x, y, err, 'lineProps', {'-', 'Color', '#0072BD'});
+    hold on; axis tight;
+    xlabel('time (s)');
+    title([session, ' Trial ', num2str(i), ' cross corr b/w chewing jaw trace & LFP'], 'Interpreter','none');
+    
+    % plot the line for max cross corr and find its corresponding time point
+    maxCorrLoc = find(y == max(y));
+    maxCorrLoc = (maxCorrLoc - maxLag)/s.ephysFs;
+    yLimits = get(gca,'YLim');
+    plot([maxCorrLoc, maxCorrLoc], [min(yLimits), max(yLimits)], 'r-');
+    legend('chewing & LFP cross corr', ['max corr loc = ', num2str(maxCorrLoc), ' s']);
+    legend boxoff;
+    
+    % save the cross corr plot
+    saveas(gcf, fullfile(sessionFolder, 'trialFigs', 'chewing jaw trace & LFP cross corr.png'));
+    
+    
+    % plot the avg LFP RMVS across all the crunches
+    figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+    x = (1:length(crunchLFP))/s.ephysFs - s.crunchTimeWindow;
+    y = mean(allCrunchLFP);
+    err = std(allCrunchLFP)/sqrt(size(allCrunchLFP, 1));
+    
+    shadedErrorBar(x, y, err, 'lineProps', {'-', 'Color', '#0072BD'});
+    hold on; axis tight;
+    xlabel('time (s)');
+    title([session, ' Trial ', num2str(i), ' avg crunch LFP'], 'Interpreter','none');
+    
+    % save the avg crunch LFP plot
+    saveas(gcf, fullfile(sessionFolder, 'trialFigs', 'session avg crunch LFP.png'));
+    
+    disp('Trial Analysis Finished!');
+else   
+    disp('Crunches and chewings are NOT analyzed, because no good LFP or no good JawTrace or no good Mic');
 end
-
-% plot the cross corr curve b/w chewing jaw distance and LFP over all the trials in
-% this session
-figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-x = [-maxLag:maxLag]/s.ephysFs;
-y = mean(chewingCrossCorr);
-err = std(chewingCrossCorr)/sqrt(size(chewingCrossCorr, 1));
-
-shadedErrorBar(x, y, err, 'lineProps', {'-', 'Color', '#0072BD'});
-hold on; axis tight;
-xlabel('time (s)');
-title([session, ' Trial ', num2str(i), ' cross corr b/w chewing jaw trace & LFP'], 'Interpreter','none');
-
-% plot the line for max cross corr and find its corresponding time point
-maxCorrLoc = find(y == max(y));
-maxCorrLoc = (maxCorrLoc - maxLag)/s.ephysFs;
-yLimits = get(gca,'YLim');
-plot([maxCorrLoc, maxCorrLoc], [min(yLimits), max(yLimits)], 'r-');
-legend('chewing & LFP cross corr', ['max corr loc = ', num2str(maxCorrLoc), ' s']);
-legend boxoff;
-
-% save the cross corr plot
-saveas(gcf, fullfile(sessionFolder, 'trialFigs', 'chewing jaw trace & LFP cross corr.png'));
-
-
-% plot the avg LFP RMVS across all the crunches
-figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-x = (1:length(crunchLFP))/s.ephysFs - s.crunchTimeWindow;
-y = mean(allCrunchLFP);
-err = std(allCrunchLFP)/sqrt(size(allCrunchLFP, 1));
-
-shadedErrorBar(x, y, err, 'lineProps', {'-', 'Color', '#0072BD'});
-hold on; axis tight;
-xlabel('time (s)');
-title([session, ' Trial ', num2str(i), ' avg crunch LFP'], 'Interpreter','none');
-
-% save the avg crunch LFP plot
-saveas(gcf, fullfile(sessionFolder, 'trialFigs', 'session avg crunch LFP.png'));
-
-
-
-
-disp('Trial Analysis Finished!');
 
 end
