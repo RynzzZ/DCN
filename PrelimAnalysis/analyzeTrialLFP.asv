@@ -1,8 +1,12 @@
-function analyzeTrial(session, varargin)
+function analyzeTrialLFP(session, varargin)
 
 % This function breaks session data into each 'food' trial.
-% (1) Save data into 'trialAnalyzed.mat'. Each row is one 'food' trial.
-
+% (1) Save data into 'trialAnalyzed.mat'. 
+%       - trial table: each row is one 'food' trial.
+%       - chewingCrossCorr: each row is the cross corr b/w chewing jaw traces and the corresponding LFP for one 'food' trial. Length: [-maxLag:maxLag]
+%       - allCrunchLFP: each row is the smoothed LFP centered around the big crunch for one 'food' trial. Length: [-s.crunchTimeWindow : s.crunchTimeWindow]*s.ephysFs
+% (2) Plot series of crunch and chewing plots for each trial.
+% (3) Plots are saved in the 'trialFigs' folder in the session folder.
 
 % settings
 s.hasLFP = true; % whether this session's recording contains a good LFP channel
@@ -12,7 +16,7 @@ s.supressFigure = false; % whether to only process the data but supress plotting
 s.crunchSearchTimeWindow = 4; % sec
 s.crunchTimeWindow = 0.02; % sec
 s.chewingSearchTimeWindow = 10; % sec
-s.chewingTimeWindow = 4; % sec
+s.chewingTimeWindow = 3; % sec
 s.chewingSearchStepLength = 0.1; % sec
 s.fs = 150000; % sampling rate for mic signal
 s.ephysFs = 30000; % sampling rate for ephys
@@ -83,6 +87,8 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
         trial.foodTriggerTime(i) = spike.foodTriggerTimes(i);
         crunchStartTime = spike.foodTriggerTimes(i) - 0.1;
         crunchEndTime = crunchStartTime + s.crunchSearchTimeWindow;
+        trial.trialStartTime(i) = crunchStartTime;
+        trial.trialEndTime(i) = crunc
         
         crunchChunkMicStartInd = find(spike.micSignalTimes >= crunchStartTime, 1, 'first');
         crunchChunkMicEndInd = find(spike.micSignalTimes <= crunchEndTime, 1, 'last');
@@ -91,40 +97,16 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
         crunchChunkMicRMSV = sqrt(movmean(crunchChunkMic.^2, 100));
         
         crunchMicThreshold = min(0.2, max(crunchChunkMic)*0.8);
-        bigCrunchTime = spike.micSignalTimes(find(crunchChunkMic >= crunchMicThreshold, 1, 'first') + crunchChunkMicStartInd);
-        trial.CrunchTime(i) = bigCrunchTime;
-        
-        % get LFP around the big crunch
-        crunchChunkEphysStartInd = find(sessionEphysInfo.convertedEphysTimestamps >= crunchStartTime, 1, 'first');
-        crunchChunkEphysEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= crunchEndTime, 1, 'last');
-        trial.trialEphysStartInd(i) =  crunchChunkEphysStartInd;
-        trial.trialStartTime(i) = crunchStartTime;
-        
-        crunchChunkLFP = rmsv(crunchChunkEphysStartInd:crunchChunkEphysEndInd);
-        smoothedCrunchChunkLFP = smooth(crunchChunkLFP, 0.002);
-        
-        crunchEphysStartTime = bigCrunchTime - s.crunchTimeWindow;
-        crunchEphysEndTime = bigCrunchTime + s.crunchTimeWindow;
-        crunchEphysStartInd = find(sessionEphysInfo.convertedEphysTimestamps >= crunchEphysStartTime, 1, 'first');
-        crunchEphysEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= crunchEphysEndTime, 1, 'last');
-        
-        crunchLFP = smoothedCrunchChunkLFP(crunchEphysStartInd-crunchChunkEphysStartInd : crunchEphysEndInd-crunchChunkEphysStartInd);
-        allCrunchLFP(i, :) = crunchLFP;
-        
-        % calculate LFP rms value for the big crunch
-        [maxVal, maxloc] = max(crunchLFP);
-        [minVal, minloc] = min(crunchLFP);
-        
-        maxPeakLoc = maxloc + crunchEphysStartInd;
-        minPeakLoc = minloc + crunchEphysStartInd;
-        
-        trial.crunchLFP_rmsVal(i) = maxVal - minVal;
-        trial.crunchLFP_MaxVal(i) = maxVal;
-        trial.crunchLFP_MinVal(i) = minVal;
-        trial.crunchLFP_MaxValLoc(i) = maxPeakLoc;
-        trial.crunchLFP_MaxValTime(i) = sessionEphysInfo.convertedEphysTimestamps(maxPeakLoc);
-        trial.crunchLFP_MinValLoc(i) = minPeakLoc;
-        trial.crunchLFP_MinValTime(i) = sessionEphysInfo.convertedEphysTimestamps(minPeakLoc);        
+        bigCrunchTime = spike.micSignalTimes(find(crunchChunkMic(1+s.fs*0.1:end) >= crunchMicThreshold, 1, 'first') + crunchChunkMicStartInd);
+        if any(bigCrunchTime)
+            bigCrunch = true;
+            trial.CrunchTime(i) = bigCrunchTime;
+            [trial, allCrunchLFP] = analyzeBigCrunch(bigCrunchTime, i, rmsv, trial, sessionEphysInfo, s.crunchTimeWindow)
+        else
+            bigCrunch = false;
+            disp('Did not detect the big crunch in mic recording, cannot analyze big crunch for this trial...')
+        end
+     
         
         %%%%%%%%%%%%%%%%%%%%% Processing chewing %%%%%%%%%%%%%%%%%%%%%%%%%%%
         trialStartTime = spike.foodTriggerTimes(i) - 0.1;
@@ -437,5 +419,47 @@ if s.hasLFP && s.hasMic && s.hasJawTrace
 else   
     disp('Crunches and chewings are NOT analyzed, because no good LFP or no good JawTrace or no good Mic');
 end
+
+    function  [trial, allCrunchLFP] = analyzeBigCrunch(bigCrunchTime, i, rmsv, trial, sessionEphysInfo, s.crunchTimeWindow)
+        
+        crunchStartTime = trial.trialStartTime(i);
+        
+        % get LFP around the big crunch
+        crunchChunkEphysStartInd = find(sessionEphysInfo.convertedEphysTimestamps >= crunchStartTime, 1, 'first');
+        crunchChunkEphysEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= crunchEndTime, 1, 'last');
+        trial.trialEphysStartInd(i) =  crunchChunkEphysStartInd;
+        
+        
+        crunchChunkLFP = rmsv(crunchChunkEphysStartInd:crunchChunkEphysEndInd);
+        smoothedCrunchChunkLFP = smooth(crunchChunkLFP, 0.002);
+        
+        crunchEphysStartTime = bigCrunchTime - s.crunchTimeWindow;
+        crunchEphysEndTime = bigCrunchTime + s.crunchTimeWindow;
+        crunchEphysStartInd = find(sessionEphysInfo.convertedEphysTimestamps >= crunchEphysStartTime, 1, 'first');
+        crunchEphysEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= crunchEphysEndTime, 1, 'last');
+        
+        crunchLFP = smoothedCrunchChunkLFP(crunchEphysStartInd-crunchChunkEphysStartInd : crunchEphysEndInd-crunchChunkEphysStartInd);
+        allCrunchLFP(i, :) = crunchLFP;
+        
+        % calculate LFP rms value for the big crunch
+        [maxVal, maxloc] = max(crunchLFP);
+        [minVal, minloc] = min(crunchLFP);
+        
+        maxPeakLoc = maxloc + crunchEphysStartInd;
+        minPeakLoc = minloc + crunchEphysStartInd;
+        
+        trial.crunchLFP_rmsVal(i) = maxVal - minVal;
+        trial.crunchLFP_MaxVal(i) = maxVal;
+        trial.crunchLFP_MinVal(i) = minVal;
+        trial.crunchLFP_MaxValLoc(i) = maxPeakLoc;
+        trial.crunchLFP_MaxValTime(i) = sessionEphysInfo.convertedEphysTimestamps(maxPeakLoc);
+        trial.crunchLFP_MinValLoc(i) = minPeakLoc;
+        trial.crunchLFP_MinValTime(i) = sessionEphysInfo.convertedEphysTimestamps(minPeakLoc);
+        
+        
+    end
+
+
+
 
 end

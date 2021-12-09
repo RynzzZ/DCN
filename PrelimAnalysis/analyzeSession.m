@@ -1,6 +1,6 @@
 function analyzeSession(session, varargin)
 % settings
-s.analyze = 'camera';  % use 'spike' to only analyze spike files, use 'camera' to only analyze camera files. 'all' will analyze both.
+s.analyze = 'all';  % use 'spike' to only analyze spike files, use 'camera' to only analyze camera files. 'all' will analyze both.
 s.foodMinInterval = 5;  % unit: sec
 s.jawConfidenceThreshold = 0.5;
 s.tongueConfidenceThreshold = 0.5;
