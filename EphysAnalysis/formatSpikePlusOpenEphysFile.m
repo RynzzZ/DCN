@@ -162,17 +162,19 @@ for i = 1:length(channelNum_OpenEphys)
     if createret ~= 0, warning('waveform channel not created correctly'); end
     CEDS64ChanTitle( fhand2, wavechan, ['ch ' num2str(i)]); % 1 being the most top recording site on the probe, 32/64 being the most bottom one.
     CEDS64ChanComment( fhand2, wavechan, '');
-    CEDS64ChanUnits( fhand2, wavechan, 'Volt' );
     
     % prepare ephys data for writing into the file
     waveDataVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(i), :));
     waveDataResampled = resample(waveDataVoltage,p,q); % resample the data to fit into the timebase of the spike file
-    waveDataNew = int16(waveDataResampled/sessionEphysInfo.bitVolts); % convert back to int16 type
+    waveDataNew = int16(waveDataResampled); % convert back to int16 type
     
     
     % write ephys data into the file
     fillret = CEDS64WriteWave( fhand2, wavechan, waveDataNew, sTime );
     if fillret < 0, warning(['Wave Channel ', num2str(wavechan), ' not filled correctly']); end
+    
+    % modify the unit for each ephys channel
+    [ iOk, ~ ] = CEDS64ChanUnits( fhand2, wavechan, 'uV' );
     
     
 end

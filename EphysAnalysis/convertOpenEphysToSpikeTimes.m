@@ -48,6 +48,40 @@ if ~runAlignment
     else
         fprintf('%s: OpenEphys Time successfully converted to Spike time. Max diff is %12.8f. \n', session, max(abs(predictedEventSpikeTimes - spikeEventTimes)));
     end
+else
+    disp('Run Alignment!')
+    
+    spikeEventTimesTemp = spikeEventTimes - spikeEventTimes(1);
+    ephysEventTimesTemp = ephysEventTimes - ephysEventTimes(1);
+    
+    if length(spikeEventTimesTemp) > length(ephysEventTimesTemp)      
+        idx = knnsearch(spikeEventTimesTemp, ephysEventTimesTemp);
+        spikeEventTimes2 = spikeEventTimes(idx);
+        
+        openEphysToSpikeMapping = polyfit(ephysEventTimes, spikeEventTimes2, 1); % get linear mapping from open ephys to spike
+        predictedEventSpikeTimes = polyval(openEphysToSpikeMapping, ephysEventTimes);
+        if max(abs(predictedEventSpikeTimes - spikeEventTimes2)) > .004
+            fprintf('%s: WARNING! Run Alignment seems failed.\n', session)
+        else
+            fprintf('%s: OpenEphys Time successfully converted to Spike time. Max diff is %12.8f. \n', session, max(abs(predictedEventSpikeTimes - spikeEventTimes2)));
+        end  
+        
+        spikeEventTimes = spikeEventTimes2;
+    else
+        idx = knnsearch(ephysEventTimesTemp, spikeEventTimesTemp);
+        ephysEventTimes2 = ephysEventTimes(idx);
+        
+        openEphysToSpikeMapping = polyfit(ephysEventTimes2, spikeEventTimes, 1); % get linear mapping from open ephys to spike
+        predictedEventSpikeTimes = polyval(openEphysToSpikeMapping, ephysEventTimes2);
+        if max(abs(predictedEventSpikeTimes - spikeEventTimes)) > .004
+            fprintf('%s: WARNING! Run Alignment seems failed.\n', session)
+        else
+            fprintf('%s: OpenEphys Time successfully converted to Spike time. Max diff is %12.8f. \n', session, max(abs(predictedEventSpikeTimes - spikeEventTimes)));
+        end
+        
+        ephysEventTimes = ephysEventTimes2;
+    end
+    
 end
 
 if s.plot

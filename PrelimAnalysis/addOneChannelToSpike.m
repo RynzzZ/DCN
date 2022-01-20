@@ -123,8 +123,8 @@ end
 
 
 % calculate channel divide rate for the new channel
-dataStartTime = timestamps(1);
-dataEndTime = timestamps(end);
+dataStartTime = timestamps(find(~isnan(timestamps), 1, 'first'));
+dataEndTime = timestamps(find(~isnan(timestamps), 1, 'last'));
 dataSamps = length(timestamps);
 dataChanDiv = (dataEndTime - dataStartTime)/(dataSamps*timebase);
 sTime = CEDS64SecsToTicks( fhand2, dataStartTime );

@@ -1,8 +1,8 @@
 clear all;
 
-minFreq = 7000;
-maxFreq = 14000;
-numFreq = 40;
+minFreq = 4500;
+maxFreq = 72000;
+numFreq = 101;
 
 % minFreq = 6000;
 % maxFreq = 12000;
@@ -62,7 +62,7 @@ fid = fopen(FullPath, 'w');
 fprintf(fid, '%2.4f\r\n', Tone);
 fclose(fid);
 
-
+disp('Finished saving!');
 
 %% generate bbn noise
 
@@ -148,7 +148,7 @@ Tdur = 50/1000; % duration for each chew
 DBSPLAmplitude = 70;
 voltageAmplitude = convertDBSPL2Voltage(DBSPLAmplitude); % loudness of the sound
 
-repeat = 10; % how many times the chewing mimic reprats
+repeat = 20; % how many times the chewing mimic reprats
 highpassFreq = 4000; % for highpassing the bbn, unit: Hz
 
 % make brief bbn sample for mimicing the chews
@@ -187,7 +187,7 @@ Tdur2 = 10/1000; % duration for each
 
 voltageAmplitude = convertDBSPL2Voltage(DBSPLAmplitude); % loudness of the sound
 
-mimicRepeat = 10; % how many times the chewing mimic reprats
+mimicRepeat = 20; % how many times the chewing mimic reprats
 fastBBNRepeat = 3; % how many times the brief BBN (2ms) repeats
 highpassFreq = 4000; % for highpassing the bbn, unit: Hz
 
@@ -210,8 +210,10 @@ for i = 1:mimicRepeat
 end
 
 
-fileFolder = 'D:\DCN\AudioFiles\Mimic_BBN_Noise\';
-fileName = 'ChewMimics_3X2msFastBBN_10Repeats_70DBSPL.txt';
+% fileFolder = 'D:\DCN\AudioFiles\Mimic_BBN_Noise\';
+fileFolder = 'D:\DCN_Project\AudioFiles\Mimic_BBN_Noise\';
+
+fileName = 'ChewMimics_3X2msFastBBN_20Repeats_70DBSPL.txt';
 
 FullPath = fullfile(fileFolder, fileName);
 fid = fopen(FullPath, 'w');

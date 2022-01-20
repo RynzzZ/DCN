@@ -4,9 +4,8 @@ function traces = showChannelsTimeChunk(session, startTimes, stopTimes, varargin
 % large column // does this for evenly spaced intervals over the duration
 % of recording // use to assess drift!
 
-
 % settings
-s.yLims = [-500 500];             % (microvolts)
+s.yLims = [-800 800];             % (microvolts)
 s.showSortedSpikes = false;       % whether to overlay sorted spikes
 s.spkWindow = [-.5 1];            % (ms) pre and post spike time to plot for spike overlays
 s.bestChannels = [];              % for each unit, the best channel for that unit // if provided, only overlay sorted spikes on this channel
@@ -70,9 +69,14 @@ if ~s.dataOnly
         if s.showSortedSpikes; color=[.5 .5 .5]; else; color=colors(j,:); end
         plot(linspace(startTime, stopTime, stopInd-startInd+1), traces(j, :)+offset, 'Color', color);
         hold on; box off;
-        if connected(j); color='black'; else; color='red'; end
+        if connected(channelNum_OpenEphys(j)); color='black'; else; color='red'; end
         text(startTime, offset, ['(' num2str(channelNum_OpenEphys(j)) ')' num2str(j)], 'Color', color);
     end
+    ylim([s.yLims(1)*2, length(channelNum_OpenEphys)*range(s.yLims)]);
+    axis tight
+    xlabel('time (sec)');
+    h = gca; h.YAxis.Visible = 'off';
+    
 end
 
 
