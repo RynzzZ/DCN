@@ -1,7 +1,7 @@
 %% temp script 
 
-session = '20211111_002';
-trialID = 9;
+session = '20211108_000';
+trialID = 2;
 
 % settings
 s.hasMic = true; % whether this session contains good microphone recordings
@@ -140,6 +140,99 @@ chewingChunkLFPEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= chewin
 chewingChunkLFPTimes = sessionEphysInfo.convertedEphysTimestamps(chewingChunkLFPStartInd:chewingChunkLFPEndInd);
 chewingChunkLFP = rmsv(chewingChunkLFPStartInd:chewingChunkLFPEndInd);
 smoothedChewingChunkLFP = smooth(chewingChunkLFP, 0.009);
+
+%% process chunk data (crunch + chewing)
+chunkLength = 8.86; %sec
+
+% get chunk start and stop time
+chunkStartTime = spike.foodTriggerTimes(trialID);
+chunkEndTime = chunkStartTime + chunkLength;
+
+% get Mic chunk data
+chunkMicStartInd = find(spike.micSignalTimes >= chunkStartTime, 1, 'first');
+chunkMicEndInd = find(spike.micSignalTimes <= chunkEndTime, 1, 'last');
+chunkMic = spike.micSignal(chunkMicStartInd : chunkMicEndInd);
+chunkMic = highpass(chunkMic, 100, 150000);
+chunkMicRMSV = sqrt(movmean(chunkMic.^2, 100));
+
+% get LFP chunk data (span = 0.002)
+chunkLFPStartInd = find(sessionEphysInfo.convertedEphysTimestamps >= chunkStartTime, 1, 'first');
+chunkLFPEndInd = find(sessionEphysInfo.convertedEphysTimestamps <= chunkEndTime, 1, 'last');
+chunkLFPTimes = sessionEphysInfo.convertedEphysTimestamps(chunkLFPStartInd:chunkLFPEndInd);
+chunkLFP = LFPVoltage(chunkLFPStartInd:chunkLFPEndInd);
+chunkLFPrmsv = rmsv(chunkLFPStartInd:chunkLFPEndInd);
+smoothedChunkLFPrmsv = smooth(chunkLFPrmsv, 0.002);
+
+% get tongue and jaw data
+chunkVideoStartInd = find(videoTracking.frameTimestamps >= chunkStartTime, 1, 'first');
+chunkVideoEndInd = find(videoTracking.frameTimestamps <= chunkEndTime, 1, 'last');
+jawTrace = videoTracking.jawDistance(chunkVideoStartInd:chunkVideoEndInd);
+tongueConfidence = videoTracking.tongue_confidence(chunkVideoStartInd:chunkVideoEndInd);
+tongueExist = videoTracking.tongueExist(chunkVideoStartInd:chunkVideoEndInd);
+
+%% plot
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+colorMatrix = {'#EDB120', 	'#77AC30', 	'#7E2F8E', 	'#0072BD'};
+fontSize = 14;
+
+% plot tongue traces
+x = linspace(0, chunkLength, length(jawTrace));
+y = (tongueConfidence/max(tongueConfidence)) + 3.3;
+plot(x, y, '-', 'Color', colorMatrix{1}, 'LineWidth', 1.2); hold on; box off;
+
+% plot jaw traces
+y = (jawTrace/max(jawTrace)) + 2;
+plot(x, y, '-', 'Color', colorMatrix{2}, 'LineWidth', 1.2);
+
+% plot LFP
+% x = linspace(0, chunkLength, length(chunkLFP));
+% y = chunkLFP/(max(chunkLFP) - min(chunkLFP)) + 1.5;
+% plot(x, y, '-', 'Color', colorMatrix{3}, 'LineWidth', 1.2);
+
+% plot LFP
+x = linspace(0, chunkLength, length(smoothedChunkLFPrmsv));
+y = smoothedChunkLFPrmsv/max(smoothedChunkLFPrmsv) + 0.8;
+plot(x, y, '-', 'Color', colorMatrix{3}, 'LineWidth', 1.2);
+
+% mic rmsv
+x = linspace(0, chunkLength, length(chunkMicRMSV));
+y = chunkMicRMSV/max(chunkMicRMSV)-0.2;
+plot(x, y, '-', 'Color', colorMatrix{4}, 'LineWidth', 1.2);
+
+h = gca; h.XAxis.Visible = 'off'; 
+h.YAxis.Visible = 'off';
+
+
+% pellet dispensed
+plot([0, 0], [0, 4.5], 'k--');
+text(-0.5, 4.6, 'pellet dispensed', 'FontWeight', 'bold', 'FontSize', fontSize);
+
+% pellet arrival
+pelletArrivalTime = videoTracking.frameTimestamps(5044);
+pelletArrivalTime = pelletArrivalTime - chunkStartTime;
+plot([pelletArrivalTime, pelletArrivalTime], [0, 4.5], 'k--'); 
+text(pelletArrivalTime-0.35, 4.6, 'pellet arrives', 'FontWeight', 'bold', 'FontSize', fontSize);
+
+% crunch line
+crunchTime = 57.36 - chunkStartTime;
+plot([crunchTime, crunchTime], [2, 4.5], 'k--' );
+text(crunchTime-0.17, 4.6, 'crunch', 'FontWeight', 'bold', 'FontSize', fontSize);
+
+% ryhthmic chewing line
+plot([5, chunkLength], [4.5, 4.5], 'k--');
+text(6.5, 4.6, 'ryhthmic chewing', 'FontWeight', 'bold', 'FontSize', fontSize);
+
+% text
+text(-0.95, 3.33, 'tongue reach', 'Color', colorMatrix{1}, 'FontWeight', 'bold', 'FontSize', fontSize);
+text(-0.9, 2.3, 'jaw distance', 'Color', colorMatrix{2}, 'FontWeight', 'bold', 'FontSize', fontSize);
+text(-0.35, 1.13, 'LFP', 'Color', colorMatrix{3}, 'FontWeight', 'bold', 'FontSize', fontSize);
+text(-0.33, 0.07, 'mic', 'Color', colorMatrix{4}, 'FontWeight', 'bold', 'FontSize', fontSize)
+
+box off; axis tight;
+ylim([-0.1, 4.6])
+
+
+
 
 %% Plot!!
 

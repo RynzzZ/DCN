@@ -1,6 +1,6 @@
 %% settings
 
-sessionList = {'20211217_002'};
+sessionList = {'20211216_001'};
 ephysChannelList = [28];
 
 crudeStartFreq = 4500; 
@@ -8,7 +8,7 @@ crudeStopFreq = 72000;
 crudeSteps = 101;
 crudeFreqs = logspace(log10(crudeStartFreq), log10(crudeStopFreq), crudeSteps); 
 
-fineStartFreq = 7500;
+fineStartFreq = 15000;
 fineStopFreq = 30000;
 fineSteps = 101;
 fineFreqs = logspace(log10(fineStartFreq), log10(fineStopFreq), fineSteps); 
@@ -40,7 +40,7 @@ freq.Y = fineFreqs;
 loudness.U = 40;
 loudness.O = 30;
 loudness.P = 20;
-loudness.Y = 15;
+loudness.Y = 10;
 
 %% process data 
 
@@ -161,8 +161,8 @@ colorbar
 set(gca,'YDir','normal');
 set(gca, 'XScale', 'log');
 
-xticks([7.5, 15, 30])
-xticklabels({'7.5', '15', '30'})
+xticks([15 20 25 30])
+xticklabels({'15', '20', '25', '30'})
 h=gca; h.XAxis.TickLength = [0 0];
 ylabel('Sound Level (dB SPL)');
 xlabel('Frequency (kHz)');
