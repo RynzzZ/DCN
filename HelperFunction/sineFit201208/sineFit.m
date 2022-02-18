@@ -177,8 +177,10 @@ if isempty(hFigPlotSin)
     'OuterPosition',[960,screensize(1,4)/2,screensize(1,3)-960,screensize(1,4)/2]);
   drawnow
 end
-figure(hFigPlotSin(1));
+figure;
+% figure(hFigPlotSin(1));
 cla reset;
+% subplot(2, 1, 1);
 plot(x,y,'k.');%time series as dots
 xlabel('Time [s]');
 hold on;
@@ -188,6 +190,7 @@ pResult=plot(xS,y5,'b-');%result
 legend([pIn,pResult,pFFT],'Input','Result', 'FFT peak');
 hold off;
 grid on;
+title(['MSE = ' num2str(SineParams(end))]);
 %FFT plot:
 hFigPlotFFT = findobj( 'Type', 'Figure', 'Tag', 'Fig$PlotFFT' );
 if isempty(hFigPlotFFT)
@@ -195,8 +198,9 @@ if isempty(hFigPlotFFT)
     'OuterPosition',[960,40,screensize(1,3)-960,screensize(1,4)/2-45]);
   drawnow
 end
-figure(hFigPlotFFT(1));
-cla reset;
+% figure(hFigPlotFFT(1));
+% subplot(2, 1, 2);
+figure;
 pFFTin=plot(fs,P1,'r-');
 xlabel('Frequency [Hz]');
 ylabel('Amplitude')

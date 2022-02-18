@@ -29,6 +29,8 @@ end
 ttlGap = s.ttlGap;
 ttlGaps = find(diff(spikeCamTimes)>ttlGap(1) & diff(spikeCamTimes)<ttlGap(2));
 camGaps = find(diff(bonsaiCamTimes)>ttlGap(1) & diff(bonsaiCamTimes)<ttlGap(2));
+disp([num2str(length(ttlGaps)) ' ttlGAPs found!']);
+disp([num2str(length(camGaps)) ' camGAPs found!']);
 
 if length(ttlGaps)==1 && length(camGaps)==1  % if same number of ttl gaps, just use the first one
     ttlGap = 1;

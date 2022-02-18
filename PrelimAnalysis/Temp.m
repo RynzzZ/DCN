@@ -544,3 +544,424 @@ subplot(3, 1, 2); plot(smoothedChewingChunkLFP); axis tight;
 subplot(3, 1, 3); plot(chewingChunkJaw_xcorr); axis tight;
 
 
+
+%% jaw phase & LFP
+
+ephysChannel = 30;
+
+if ~exist(fullfile(sessionFolder, 'sessionEphysInfo.mat'), 'file')
+    error('sessioinEphysInfo.mat NOT exist!');
+else
+    % load sessionEphysInfo
+    disp('loading ephys data...')
+    load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'), 'sessionEphysInfo');
+    mapFile = sessionEphysInfo.mapFile;
+    load(fullfile('Z:\obstacleData\ephys\channelMaps\kilosort', [mapFile, '.mat']), 'channelNum_OpenEphys');
+    
+    % function to extract voltage from binary file
+    getVoltage = @(data) ...
+        double(data)*sessionEphysInfo.bitVolts; % extract voltage from memmapfile, converting to votlage, highpassing, and only return specific channel
+    
+    % load raw ephys voltage
+    contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
+    data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
+        'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
+    
+    LFPVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), :));
+    rmsv = sqrt(movmean(LFPVoltage.^2, 100));
+end
+ephysTime = sessionEphysInfo.convertedEphysTimestamps;
+
+ephysStartInds = nan(length(goodChewsStartStopTime), 1);
+ephysStopInds = nan(length(goodChewsStartStopTime), 1);
+LFPChunks = cell(length(goodChewsStartStopTime), 1);
+for i = 1:length(goodChewsStartStopTime)
+    ephysStartInds(i) = find(ephysTime > goodChewsStartStopTime(i, 1), 1, 'first');
+    ephysStopInds(i) = find(ephysTime < goodChewsStartStopTime(i, 2), 1, 'last');
+    
+    % LFPChunks{i, 1} = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(i, 1):ephysStopInds(i, 1))); 
+    LFPChunks{i, 1} = rmsv(ephysStartInds(i):ephysStopInds(i));
+end
+
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+rows = 2;
+cols = 5;
+plotInd = 1;
+
+selectedChews = [];
+for i = 1:length(LFPChunks)
+    subplot(rows, cols, plotInd);
+    
+    x1 = linspace(goodChewsStartStopTime(i, 1), goodChewsStartStopTime(i, 2), length(goodChewsJawDistance{i, 1}));
+    y1 = goodChewsJawDistance{i, 1};
+    % y1 = lowpass(y1, 5, 1/(x1(2) - x1(1)));
+    
+    x2 = linspace(ephysTime(ephysStartInds(i)), ephysTime(ephysStopInds(i)), length(LFPChunks{i, 1}));
+    y2 = LFPChunks{i, 1};
+    y2 = smooth(LFPChunks{i, 1}, 0.002);
+    if any((y2-100)>-20)
+        selectedChews = [selectedChews, i];
+        plot(x1, y1*10, 'LineWidth', 2);
+        hold on; box off;
+        plot(x2, y2-100, 'LineWidth', 2);
+        
+        plotInd = plotInd + 1;
+    end
+    
+    if plotInd > rows*cols
+        figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+        rows = 2;
+        cols = 5;
+        plotInd = 1;    
+    end
+    
+    
+end
+
+load('Z:\Qianyun\DCN\Data\Common\goodChews.mat');
+jawDistanceMaxLength = 30;
+LFPMaxLength = 7500;
+
+% goodChewsJawDistanceMatrix = nan(length(selectedChews), jawDistanceMaxLength);
+% goodChewsLFPMatrix = nan(length(selectedChews), LFPMaxLength);
+temp = length(goodChewsJawDistanceMatrix);
+for i = 1:length(selectedChews)
+    ind = selectedChews(i);
+    goodChewsJawDistanceMatrix(temp+i, :) = interp1(1:length(goodChewsJawDistance{ind, 1}), goodChewsJawDistance{ind, 1}, ...
+        linspace(1, length(goodChewsJawDistance{ind, 1}), jawDistanceMaxLength), 'spline');
+    
+    goodChewsLFPMatrix(temp+i, :) = interp1(1:length(LFPChunks{ind, 1}), LFPChunks{ind, 1}, ...
+        linspace(1, length(LFPChunks{ind, 1}), LFPMaxLength), 'spline');
+    
+end
+
+
+% plot: overlay jaw movement and LFP rmsv
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+yyaxis left
+shadedErrorBar(linspace(0, 1, size(goodChewsJawDistanceMatrix, 2)), mean(goodChewsJawDistanceMatrix), std(goodChewsJawDistanceMatrix), ...
+    'lineProps', {'-', 'Color', '#77AC30', 'LineWidth', 2});
+box off;
+ylabel('Jaw Distance(pixel)');
+
+
+yyaxis right
+% shadedErrorBar(linspace(0, 1, LFPMaxLength), mean(goodChewsLFPMatrix), std(goodChewsLFPMatrix), ...
+%      'lineProps', {'-', 'Color', '#A2142F'});
+shadedErrorBar(linspace(0, 1, LFPMaxLength), mean(goodChewsLFPMatrix), std(goodChewsLFPMatrix), ...
+     'lineProps', {'c-', 'LineWidth', 2});
+
+% for i = 1:length(goodChewsLFPMatrix)
+%     plot(linspace(0, 1, LFPMaxLength), goodChewsLFPMatrix(i, :), '-'); hold on;
+% end
+box off;
+ylabel('RMS Value');
+xlabel('Jaw Phase');
+
+legend('Jaw Movement', 'LFP');
+
+legend('Jaw Movement', 'CWC', 'LFP');
+ylabel('LFP RMSV or SpkRate (spk/s)')
+
+save('Z:\Qianyun\DCN\Data\Common\goodChews.mat', 'goodChewsJawDistanceMatrix', 'goodChewsLFPMatrix');
+
+
+%% Individual Chews - LFP Rasters overlay Jaw Distance
+
+
+load('Z:\Qianyun\DCN\Data\Common\goodChews.mat');
+
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+rows = 2;
+cols = 5;
+plotInd = 1;
+
+jawDistanceMaxLength = 30;
+LFPMaxLength = 7500;
+peakInds = cell(length(goodChewsJawDistanceMatrix), 1);
+for i = 1:length(goodChewsJawDistanceMatrix)
+    subplot(rows, cols, plotInd);
+    
+    yyaxis left
+    x1 = linspace(0, 1, jawDistanceMaxLength);
+    y1 = goodChewsJawDistanceMatrix(i, :);
+    plot(x1, y1, 'LineWidth', 2);
+    
+    yyaxis right
+    x2 = linspace(0, 1, LFPMaxLength);
+    y2 = goodChewsLFPMatrix(i, :);
+    plot(x2, y2, 'LineWidth', 2); hold on;
+    
+    [~, locs] = findpeaks(y2, 'MinPeakHeight', max(y2)*0.8, 'MinPeakDistance', 150);
+    peakInds{i, 1} = locs;
+    
+    plot(x2(locs), goodChewsLFPMatrix(i, locs), 'c.', 'MarkerSize', 15);
+    
+    plotInd = plotInd + 1;
+    
+    if plotInd > rows*cols
+        figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+        rows = 2;
+        cols = 5;
+        plotInd = 1;    
+    end   
+end
+
+temp = nan(length(peakInds), 1);
+for i = 1:length(peakInds)
+    temp(i) = peakInds{i, 1}(1);
+end
+
+[sorted, sortedIndex] = sort(temp);
+
+% plot: 3 subplot figure - jaw movement, LFPCWC raster and JawLFPCWC curve
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+rows = 2;
+cols = 2;
+plotInd = 1;
+
+subplot(rows, cols, plotInd);
+shadedErrorBar(linspace(0, 1, size(goodChewsJawDistanceMatrix, 2)), mean(goodChewsJawDistanceMatrix), std(goodChewsJawDistanceMatrix), ...
+    'lineProps', {'-', 'Color', '#77AC30', 'LineWidth', 2});
+box off;
+ylabel('Jaw Distance(pixel)');
+legend('Jaw Movement')
+ax = gca;
+ax.XAxis.Visible = 'off';
+
+plotInd = 3;
+subplot(rows, cols, plotInd);
+
+for i = 1:length(spkInds)
+    x1 = linspace(0, 1, LFPMaxLength);
+    inds = spkInds{i, 1};
+    x2 = x1(inds);
+    if i == 1
+        plot(x2, repmat(length(spkInds)+1-i, 1, length(x2)), '.', 'MarkerSize', 20, 'color', '#A2142F');
+    else
+        plot(x2, repmat(length(spkInds)+1-i, 1, length(x2)), '.', 'MarkerSize', 20, 'color', '#A2142F', 'HandleVisibility', 'off');
+    end
+    hold on; box off;
+end
+
+for i = 1:length(peakInds)
+    x1 = linspace(0, 1, LFPMaxLength);
+    inds = peakInds{i, 1};
+    x2 = x1(inds);
+    if i == 1
+        plot(x2, repmat(length(peakInds)+1-i, 1, length(x2)), 'c.', 'MarkerSize', 20 );
+    else
+        plot(x2, repmat(length(peakInds)+1-i, 1, length(x2)), 'c.', 'MarkerSize', 20, 'HandleVisibility', 'off' );
+    end
+    hold on; box off;
+end
+
+legend('CWC', 'LFP')
+
+% histogram(CWCRaster/7500); hold on;
+% histogram(LFPRaster/7500); box off
+
+xlabel('Jaw Phase');
+ylabel('Individual Chew Number');
+xlim([0, 1]);
+
+% temp = [];
+% L = 0;
+% for i = 1:length(peakInds)
+%     temp(L+1:L+length(peakInds{i, 1})) = peakInds{i, 1};
+%     L = length(temp);
+% end
+% LFPRaster = temp;
+% 
+% temp = [];
+% L = 0;
+% for i = 1:length(spkInds)
+%     temp(L+1:L+length(spkInds{i, 1})) = spkInds{i, 1};
+%     L = length(temp);
+% end
+% CWCRaster = temp;
+
+subplot(2, 2, [2, 4]);
+yyaxis left
+shadedErrorBar(linspace(0, 1, size(goodChewsJawDistanceMatrix, 2)), mean(goodChewsJawDistanceMatrix), std(goodChewsJawDistanceMatrix), ...
+    'lineProps', {'-', 'Color', '#77AC30', 'LineWidth', 2});
+box off;
+ylabel('Jaw Distance(pixel)');
+
+
+yyaxis right
+shadedErrorBar(linspace(0, 1, LFPMaxLength), mean(goodChewsLFPMatrix), std(goodChewsLFPMatrix), ...
+     'lineProps', {'c-', 'LineWidth', 2}); hold on;
+shadedErrorBar(linspace(0, 1, size(spkRate, 2)), mean(spkRate), std(spkRate), ...
+     'lineProps', {'-', 'Color', '#A2142F', 'LineWidth', 2}); hold on;
+box off;
+ylabel('LFP RMS Value or Spk/s');
+xlabel('Jaw Phase');
+
+legend('Jaw Movement', 'LFP', 'CWC');
+
+
+
+%% Individual Chews - Process CWC 
+ephysChannel = 23;
+ephysThresh = -200;
+
+if ~exist(fullfile(sessionFolder, 'sessionEphysInfo.mat'), 'file')
+    error('sessioinEphysInfo.mat NOT exist!');
+else
+    % load sessionEphysInfo
+    disp('loading ephys data...')
+    load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'), 'sessionEphysInfo');
+    mapFile = sessionEphysInfo.mapFile;
+    load(fullfile('Z:\obstacleData\ephys\channelMaps\kilosort', [mapFile, '.mat']), 'channelNum_OpenEphys');
+    
+    % function to extract voltage from binary file
+    getVoltage = @(data) ...
+        double(data)*sessionEphysInfo.bitVolts; % extract voltage from memmapfile, converting to votlage, highpassing, and only return specific channel
+    
+    % load raw ephys voltage
+    contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
+    data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
+        'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
+    
+    ephysVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), :));
+end
+ephysTime = sessionEphysInfo.convertedEphysTimestamps;
+
+
+goodChewsStartStopTime = trialInfo.goodChewsStartStopTime;
+ephysStartInds = nan(length(goodChewsStartStopTime), 1);
+ephysStopInds = nan(length(goodChewsStartStopTime), 1);
+ephysChunks = cell(length(goodChewsStartStopTime), 1);
+for i = 1:length(goodChewsStartStopTime)
+    ephysStartInds(i) = find(ephysTime > goodChewsStartStopTime(i, 1), 1, 'first');
+    ephysStopInds(i) = find(ephysTime < goodChewsStartStopTime(i, 2), 1, 'last');
+    
+    ephysChunks{i, 1} = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(i, 1):ephysStopInds(i, 1))); 
+    % ephysChunks{i, 1} = rmsv(ephysStartInds(i):ephysStopInds(i));
+end
+
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+rows = 2;
+cols = 5;
+plotInd = 1;
+
+goodChewsJawDistance = trialInfo.goodChewsJawDistance;
+for i = 1:length(ephysChunks)
+    subplot(rows, cols, plotInd);
+    
+    x1 = linspace(goodChewsStartStopTime(i, 1), goodChewsStartStopTime(i, 2), length(goodChewsJawDistance{i, 1}));
+    y1 = goodChewsJawDistance{i, 1};
+    
+    x2 = linspace(ephysTime(ephysStartInds(i)), ephysTime(ephysStopInds(i)), length(ephysChunks{i, 1}));
+    y2 = ephysChunks{i, 1};
+    
+    plot(x1, y1*15, 'LineWidth', 2);
+    hold on; box off;
+    plot(x2, y2, 'LineWidth', 1);
+    axis tight;
+    
+    plotInd = plotInd + 1;
+
+    
+    if plotInd > rows*cols
+        figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+        rows = 2;
+        cols = 5;
+        plotInd = 1;    
+    end
+    
+    
+end
+
+selectedChews = [1:18, 20:28, 30:32, 34:111, 113:156, 159:178];
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+rows = 2;
+cols = 5;
+plotInd = 1;
+
+for i = 1:length(selectedChews)
+    subplot(rows, cols, plotInd);
+    ind = selectedChews(i);
+    x1 = linspace(goodChewsStartStopTime(ind, 1), goodChewsStartStopTime(ind, 2), length(goodChewsJawDistance{ind, 1}));
+    y1 = goodChewsJawDistance{ind, 1};
+    
+    x2 = linspace(ephysTime(ephysStartInds(ind)), ephysTime(ephysStopInds(ind)), length(ephysChunks{ind, 1}));
+    y2 = ephysChunks{ind, 1};
+    
+    [~, spikeInds, ~] = crossdet(y2, ephysThresh, 'thresholdDown');
+    spkInds{i, 1} = spikeInds;
+    
+    plot(x1, y1*15, 'LineWidth', 2);
+    hold on; box off;
+    plot(x2, y2, 'LineWidth', 1);
+    axis tight;
+    plot(x2(spikeInds), repmat(ephysThresh, 1, length(spikeInds)), 'c.', 'MarkerSize', 10);
+    
+    plotInd = plotInd + 1;
+    
+
+    
+    if plotInd > rows*cols
+        figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+        rows = 2;
+        cols = 5;
+        plotInd = 1;    
+    end
+    
+    
+end
+
+load('Z:\Qianyun\DCN\Data\Common\goodChews.mat');
+% temp = length(goodChewsJawDistanceMatrix);
+jawDistanceMaxLength = 30;
+ephysMaxLength = 7500;
+
+goodChewsJawDistanceMatrixCWC = nan(length(selectedChews), jawDistanceMaxLength);
+goodChewsEphysMatrix = nan(length(selectedChews), ephysMaxLength);
+
+spkInds = cell(1, 1);
+spkRate = nan(1, 250);
+tempInd = 1;
+for i = 1:length(selectedChews)
+    ind = selectedChews(i);
+    goodChewsJawDistanceMatrixCWC(i, :) = interp1(1:length(goodChewsJawDistance{ind, 1}), goodChewsJawDistance{ind, 1}, ...
+        linspace(1, length(goodChewsJawDistance{ind, 1}), jawDistanceMaxLength), 'spline');
+    
+    goodChewsEphysMatrix(i, :) = interp1(1:length(ephysChunks{ind, 1}), ephysChunks{ind, 1}, ...
+        linspace(1, length(ephysChunks{ind, 1}), ephysMaxLength), 'spline');
+    
+    [~, spikeInds, ~] = crossdet(goodChewsEphysMatrix(i, :), ephysThresh, 'thresholdDown');
+    
+    
+    if ~isempty(spkInds)
+        spkInds{tempInd, 1} = spikeInds;
+        spikeTimes = spikeInds/sessionEphysInfo.fs;
+        [spkRate(tempInd, :), spikeRateTimes] = getFiringRate(spikeTimes, 'tLims', [1/sessionEphysInfo.fs, ephysMaxLength/sessionEphysInfo.fs]);
+        tempInd = tempInd + 1;
+    end
+    
+end
+
+
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+yyaxis left
+shadedErrorBar(linspace(0, 1, size(goodChewsJawDistanceMatrixCWC, 2)), mean(goodChewsJawDistanceMatrixCWC), std(goodChewsJawDistanceMatrixCWC), ...
+    'lineProps', {'-', 'Color', '#77AC30', 'LineWidth', 2});
+box off;
+ylabel('Jaw Distance(pixel)');
+
+
+yyaxis right
+shadedErrorBar(linspace(0, 1, size(spkRate, 2)), mean(spkRate), std(spkRate), ...
+     'lineProps', {'-', 'Color', '#A2142F', 'LineWidth', 2});
+
+box off;
+ylabel('SpkRate(Spk/s)');
+xlabel('Jaw Phase');
+
+legend('Jaw Movement', 'CWC');
+
+
+save(fullfile(sessionFolder, 'CWCGoodChews.mat'), 'goodChewsJawDistanceMatrixCWC', 'goodChewsEphysMatrix', 'spkInds', 'spkRate');
+

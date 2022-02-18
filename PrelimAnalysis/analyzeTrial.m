@@ -4,8 +4,9 @@ function analyzeTrial(session, varargin)
 s.hasMic = false; % whether this session contains good microphone recordings
 s.crunchSearchTimeWindow = 4; % sec
 s.crunchTimeWindow = 0.02; % sec
-s.chewingSearchTimeWindow = 10; % sec
-s.chewingTimeWindow = 3; % sec
+s.chewingSearchTimeWindow = 12; % sec, detemine the time range (how long) of the chewing search 
+s.chewingSearchStartTimeShift = 4; % sec, how many seconds after the trial start should we strat the chewing search
+s.chewingTimeWindow = 4; % sec
 s.chewingSearchStepLength = 0.1; % sec
 s.fs = 150000; % sampling rate for mic signal
 s.ephysFs = 30000; % sampling rate for ephys
@@ -42,12 +43,13 @@ trialInfo = struct();
 trialInfo.totalFoodTrialNumber = spike.totalFoodNum;
 trialInfo.foodTriggerTimes = spike.foodTriggerTimes;
 
-crunchWindow = nan(trialInfo.totalFoodTrialNumber, 2);
-crunchMicRMSV = cell(trialInfo.totalFoodTrialNumber, 1);
-chewingWindow = nan(trialInfo.totalFoodTrialNumber, 2);
-chewingJawDistance = cell(trialInfo.totalFoodTrialNumber, 1);
-chewingJawTime = cell(trialInfo.totalFoodTrialNumber, 1);
-chewingJawInds = cell(trialInfo.totalFoodTrialNumber, 1);
+crunchWindow = [];
+crunchMicRMSV = cell(1, 1);
+chewingWindow = [];
+chewingJawDistance = cell(1, 1);
+chewingJawTime = cell(1, 1);
+chewingJawInds = cell(1, 1);
+selectedTrialNum = 1;
 
 for i = 1:trialInfo.totalFoodTrialNumber
     fprintf('%d/%d', i, trialInfo.totalFoodTrialNumber);
@@ -67,36 +69,45 @@ for i = 1:trialInfo.totalFoodTrialNumber
     
     %%%%%%%%%%%%%%%%%%%%% Processing chewing %%%%%%%%%%%%%%%%%%%%%%%%
     trialStartTime = spike.foodTriggerTimes(i) - 0.1;
-    chewingEndTime = trialStartTime + s.chewingSearchTimeWindow;
+    chewingEndTime = trialStartTime + s.chewingSearchStartTimeShift + s.chewingSearchTimeWindow;
     
     % locate chewing period
-    chewingChunkStartTime = trialStartTime + 4;
+    chewingChunkStartTime = trialStartTime + s.chewingSearchStartTimeShift;
     chewingChunkEndTime = chewingChunkStartTime + s.chewingTimeWindow;
-    fitMSE = [];
+    fitResults = [];
+    
     while(chewingChunkEndTime <= chewingEndTime)
         chewingChunkVideoStartInd = find(videoTracking.frameTimestamps >= chewingChunkStartTime, 1, 'first');
         chewingChunkVideoEndInd = find(videoTracking.frameTimestamps <= chewingChunkEndTime, 1, 'last');
         
         chewingChunkJaw = videoTracking.jawDistance(chewingChunkVideoStartInd:chewingChunkVideoEndInd);
         fitResult = sineFit(1:length(chewingChunkJaw), chewingChunkJaw', 0);
-        fitMSE = [fitMSE, fitResult(end)];
+        fitResults = [fitResults; fitResult];
         
         chewingChunkStartTime = chewingChunkStartTime + s.chewingSearchStepLength;
         chewingChunkEndTime = chewingChunkEndTime + s.chewingSearchStepLength;
     end
     
+    fitMSE = fitResults(:, 5);
     tempInd = find(fitMSE == min(fitMSE(fitMSE>0)));
-    disp(['minFitMSE = ', num2str(min(fitMSE(fitMSE>0)))]);
-    chewingWindow(i, 1) = trialStartTime + 4 + s.chewingSearchStepLength*(tempInd - 1);
-    chewingWindow(i, 2) = chewingWindow(i, 1) + s.chewingTimeWindow;
-    chewingChunkVideoStartInd = find(videoTracking.frameTimestamps >= chewingWindow(i, 1), 1, 'first');
-    chewingChunkVideoEndInd = find(videoTracking.frameTimestamps <= chewingWindow(i, 2), 1, 'last');
-
-    chewingChunkJaw = videoTracking.jawDistance(chewingChunkVideoStartInd:chewingChunkVideoEndInd);
-    sineFit(1:length(chewingChunkJaw), chewingChunkJaw'); % sanity check
-    chewingJawDistance{i, 1} = chewingChunkJaw;
-    chewingJawTime{i, 1} = videoTracking.frameTimestamps(chewingChunkVideoStartInd:chewingChunkVideoEndInd);
-    chewingJawInds{i, 1} = [chewingChunkVideoStartInd:chewingChunkVideoEndInd]';
+    minFitMSE = min(fitMSE(fitMSE>0));
+    disp(['minFitMSE = ', num2str(minFitMSE)]);
+    
+    if fitResults(tempInd, 2) > 1.5 && fitResults(tempInd, 3) > 0.03
+        disp(['trial ' num2str(i) ' selected'])
+        chewingWindow(selectedTrialNum, 1) = trialStartTime + s.chewingSearchStartTimeShift + s.chewingSearchStepLength*(tempInd - 1);
+        chewingWindow(selectedTrialNum, 2) = chewingWindow(selectedTrialNum, 1) + s.chewingTimeWindow;
+        chewingChunkVideoStartInd = find(videoTracking.frameTimestamps >= chewingWindow(selectedTrialNum, 1), 1, 'first');
+        chewingChunkVideoEndInd = find(videoTracking.frameTimestamps <= chewingWindow(selectedTrialNum, 2), 1, 'last');
+        chewingChunkJaw = videoTracking.jawDistance(chewingChunkVideoStartInd:chewingChunkVideoEndInd);
+        % sanity check
+        sineFit(1:length(chewingChunkJaw), chewingChunkJaw'); % sanity check
+        
+        chewingJawDistance{selectedTrialNum, 1} = chewingChunkJaw;
+        chewingJawTime{selectedTrialNum, 1} = videoTracking.frameTimestamps(chewingChunkVideoStartInd:chewingChunkVideoEndInd);
+        chewingJawInds{selectedTrialNum, 1} = [chewingChunkVideoStartInd:chewingChunkVideoEndInd]';
+        selectedTrialNum = selectedTrialNum + 1;
+    end
 end
 
 % save variables into trialInfo structure
@@ -108,19 +119,21 @@ trialInfo.chewingJawTime = chewingJawTime;
 trialInfo.chewingJawInds = chewingJawInds;
 
 % plot and calculate jaw phase in each chew!
-avgChewCycleLength = cell(trialInfo.totalFoodTrialNumber, 1);
+avgChewCycleLength = cell(size(chewingWindow, 1), 1);
+trialInfo.chewingJawDistanceLowPass = cell(size(chewingWindow, 1), 1);
 goodChewsStartStopTime = [];
 goodChewsStartStopInds = [];
 startInds = []; stopInds = [];
 startTimes = []; stopTimes = [];
 % figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
 % rows = 5; cols = 6; plotInd = 1;
-for i = 1:trialInfo.totalFoodTrialNumber    
-    fprintf('%d/%d', i, trialInfo.totalFoodTrialNumber); 
+for i = 1:size(chewingWindow, 1)    
+    fprintf('%d/%d', i, size(chewingWindow, 1)); 
 
     y = trialInfo.chewingJawDistance{i, 1};
-    y2 = lowpass(y, 5, 1/(x(2) - x(1)));
     x = linspace(trialInfo.chewingWindow(i, 1), trialInfo.chewingWindow(i, 2), length(trialInfo.chewingJawDistance{i, 1}));
+    y2 = lowpass(y, 5, 1/(x(2) - x(1)));
+    trialInfo.chewingJawDistanceLowPass{i, 1} = y2;
     
     jawPhase = hilbert(lowpass(y, 5, 1/(x(2) - x(1))));
     jawPhase = angle(jawPhase);
@@ -139,7 +152,7 @@ for i = 1:trialInfo.totalFoodTrialNumber
     title(['trial ', num2str(i)]);
     
     subplot(2, 1, 2);
-    plot(x, yy2); hold on;
+    plot(x, jawPhase); hold on;
     plot(x(locs), jawPhase(locs), 'r.', 'MarkerSize', 10)    
     plot(x(minlocs), jawPhase(minlocs), 'b.', 'MarkerSize', 10);
     box off; axis tight;
@@ -154,8 +167,8 @@ for i = 1:trialInfo.totalFoodTrialNumber
     
     startInds = trialInfo.chewingJawInds{i, 1}(minlocs(inds));
     stopInds = trialInfo.chewingJawInds{i, 1}(minlocs(inds+1))-1;
-    startTimes = trialInfo.chewingJawTime{i, 1}(minlocs(inds));
-    stopTimes = trialInfo.chewingJawTime{i, 1}(minlocs(inds+1))-1;
+    startTimes = videoTracking.frameTimestamps(startInds);
+    stopTimes = videoTracking.frameTimestamps(stopInds);
     
     goodChewsStartStopInds = [goodChewsStartStopInds;[startInds, stopInds]];
     goodChewsStartStopTime = [goodChewsStartStopTime;[startTimes, stopTimes]];
@@ -170,6 +183,11 @@ end
 trialInfo.goodChewsStartStopInds = goodChewsStartStopInds;
 trialInfo.goodChewsStartStopTime = goodChewsStartStopTime;
 trialInfo.goodChewsJawDistance = goodChewsJawDistance;
+
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+for i = 1:length(trialInfo.goodChewsJawDistance)
+    plot(trialInfo.goodChewsJawDistance{i, 1}); hold on;
+end
 
 save(fullfile(sessionFolder, 'trialInfo.mat'), 'trialInfo');    
 

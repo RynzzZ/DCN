@@ -1,24 +1,24 @@
 %% settings
 
-sessionList = {'20211111_002', '20211111_003'};
-ephysChannelList = [ 24, 24];
+sessionList = {'20211111_002'};
+ephysChannelList = [24];
 
 crudeStartFreq = 4500; 
 crudeStopFreq = 72000; 
-crudeSteps = 41;
+crudeSteps = 40;
 crudeFreqs = logspace(log10(crudeStartFreq), log10(crudeStopFreq), crudeSteps); 
 
-fineStartFreq = 7500;
+fineStartFreq = 15000;
 fineStopFreq = 30000;
 fineSteps = 101;
 fineFreqs = logspace(log10(fineStartFreq), log10(fineStopFreq), fineSteps); 
 
 freq.RLFBF = 21000;
-load('C:\Users\qyzzz\OneDrive\AudioFiles\RateLevelFunction\BF21K_10to70DBSPL_1DBSPLInterval_RateLevelFunction_LoudnessLevel.mat');
+load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BF21K_10to70DBSPL_1DBSPLInterval_RateLevelFunction_LoudnessLevel.mat');
 loudness.RLFBF = loudnessLevel;
 clear loudnessLevel;
 
-load('C:\Users\qyzzz\OneDrive\AudioFiles\RateLevelFunction\BBNNEW_10to70DBSPL_1DBSPLInterval_RateLevelFunction_BBNLoudnessLevel.mat');
+load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BBNNEW_10to70DBSPL_1DBSPLInterval_RateLevelFunction_BBNLoudnessLevel.mat');
 loudness.RLFBBN = BBNLoudnessLevel;
 
 
@@ -28,9 +28,9 @@ freq.L = crudeFreqs;
 freq.H = crudeFreqs;
 
 loudness.J = 70; % unit: DBSPL;
-loudness.K = 60;
-loudness.L = 50;
-loudness.H = 40;
+loudness.K = 50;
+loudness.L = 40;
+loudness.H = 30;
 
 freq.U = fineFreqs;
 freq.O = fineFreqs;
@@ -40,7 +40,7 @@ freq.Y = fineFreqs;
 loudness.U = 40;
 loudness.O = 30;
 loudness.P = 20;
-loudness.Y = 15;
+loudness.Y = 10;
 
 %% process data 
 
@@ -124,7 +124,7 @@ Levels = 70:-1:40;
 
 Vq = griddata(responseData(:,1), responseData(:,2),responseData(:,3),F,L,'cubic');
 
-figure('Color', 'white','WindowState','maximized'); clf
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
 imagesc(Freqs(:)/1000,Levels(:),Vq);
 colorbar
 set(gca,'YDir','normal');
@@ -155,7 +155,7 @@ Levels = 40:-1:15;
 
 Vq = griddata(responseData(:,1), responseData(:,2),responseData(:,3),F,L,'cubic');
 
-figure('Color', 'white','WindowState','maximized'); clf
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
 imagesc(Freqs(:)/1000,Levels(:),Vq);
 colorbar
 set(gca,'YDir','normal');
@@ -241,7 +241,7 @@ if length(stimuliTimes) ~= length(DBAttenuation)
     error('Stimuli times does NOT match attenuation levels!');
 end
 
-figure('Color', 'white','WindowState','maximized'); clf
+figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
 cols = 5;
 rows = 2;
 plotInd = 1;
@@ -261,6 +261,139 @@ for i = 1:length(stimuliTimes)
 end
 
     
+%% plot spike rate for cells during chewing mimic 
+% initializations and data loading
+session = '20220127_001';
+ephysChannel = 29;
+ephysThresh = -250; % unit: uV;
+
+% settings
+mimicWindow = [-0.01, 0.06]; % unit: sec;
+C.loudnessLevel = 70;
+C.attenuationLevel = [-0:-3:-27];
+
+C.mimicRepeat = 20;
+C.fastBBNRepeat = 3;
+
+C.voltageThresh = 2.0; % unit: volt;
+
+D.loudnessLevel = 75;
+D.attenuationLevel = [0, 0];
+
+% initializations
+rootFolder = 'Z:\Qianyun\DCN\';
+gitFolder = 'D:\DCN_Project\Github\DCN\';
+sessionFolder = fullfile(rootFolder, 'Data', session);
+
+% load data
+[spike, ~, sessionEphysInfo, getVoltage, data, channelNum_OpenEphys] = loadSessionData(session);
+disp('Data loading finished!');
+
+%% process the data - chewing mimic PSTH analysis
+
+C.times = spike.keyboardTimes(strfind(convertCharsToStrings(spike.keyboardInput), 'C'));
+D.times = spike.keyboardTimes(strfind(convertCharsToStrings(spike.keyboardInput), 'D'));
+
+if length(C.times) ~= length(C.attenuationLevel) || length(D.times) ~= length(D.attenuationLevel)
+    error('times does NOT match currentLevels!!! (C or D)');
+end
+
+% Start with C
+spikeRate = cell(length(C.attenuationLevel)*C.mimicRepeat, 2);
+for i = 1:length(C.attenuationLevel)
+    
+    keyboardTime = C.times(i);
+    mimicTempInd = find(spike.audioSignalTimes >= keyboardTime, 1, 'first');
+    mimicStartInd = find(spike.audioSignal(mimicTempInd:end) >= C.voltageThresh, 1, 'first') + mimicTempInd;
+    mimicStartTime = spike.audioSignalTimes(mimicStartInd);
+    
+    ephysMimicStartTime(1) = mimicStartTime + mimicWindow(1);
+    ephysMimicEndTime(1) = mimicStartTime + mimicWindow(2);
+    ephysMimicStartInd(1) = find(sessionEphysInfo.convertedEphysTimestamps >= ephysMimicStartTime(1), 1, 'first');
+    ephysMimicEndInd(1) = find(sessionEphysInfo.convertedEphysTimestamps <= ephysMimicEndTime(1), 1, 'last');
+    
+    for j = 1:C.mimicRepeat
+        ephysMimicData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysMimicStartInd(j):ephysMimicEndInd(j)));
+        [~, spikeInds, ~] = crossdet(ephysMimicData, ephysThresh, 'thresholdDown');
+        spikeTimes = (spikeInds/sessionEphysInfo.fs) + mimicWindow(1);
+        [spikeRate{(i-1)*C.mimicRepeat+j, 1}, spikeRateTimes] = getFiringRate(spikeTimes, 'tLims', [mimicWindow(1), mimicWindow(2)]);
+        spikeRate{(i-1)*C.mimicRepeat+j, 2} = C.attenuationLevel(i);
+        
+        if j == 10
+            figure('Color', 'white','WindowState','maximized'); clf
+            x = linspace(mimicWindow(1), mimicWindow(2), length(ephysMimicData));
+            % x = sessionEphysInfo.convertedEphysTimestamps(ephysMimicStartInd(j) : ephysMimicEndInd(j));
+            plot(x, ephysMimicData); hold on;
+            % startLine = sessionEphysInfo.convertedEphysTimestamps(ephysTrainStartInd(j)) - estimWindow(1);
+            % endLine = sessionEphysInfo.convertedEphysTimestamps(ephysTrainEndInd(j)) - estimWindow(2);
+            plot([0, 0], [min(ephysMimicData), max(ephysMimicData)], '-c', 'LineWidth', 2);
+            plot([0.03, 0.03], [min(ephysMimicData), max(ephysMimicData)], '-r', 'LineWidth', 2);
+            % plot(sessionEphysInfo.convertedEphysTimestamps(spikeInds+ephysTrainStartInd(j)), repmat(-220, 1, length(spikeInds)), '.', 'MarkerSize', 12);
+            plot(spikeRateTimes, spikeRate{(i-1)*C.mimicRepeat+j, 1});
+            ylabel('uV');
+            xlabel('time');
+            axis tight;
+        end
+        
+        if j < C.mimicRepeat
+            mimicStartTimeTemp = ephysMimicStartTime(j) + 0.1;
+            mimicTempInd = find(spike.audioSignalTimes >= mimicStartTimeTemp, 1, 'first');
+            mimicStartInd = find(spike.audioSignal(mimicTempInd:end) >= C.voltageThresh, 1, 'first') + mimicTempInd;
+            mimicStartTime = spike.audioSignalTimes(mimicStartInd);
+            
+            ephysMimicStartTime(j+1) = mimicStartTime + mimicWindow(1);
+            ephysMimicEndTime(j+1) = mimicStartTime + mimicWindow(2);
+            ephysMimicStartInd(j+1) = find(sessionEphysInfo.convertedEphysTimestamps >= ephysMimicStartTime(j), 1, 'first');
+            ephysMimicEndInd(j+1) = find(sessionEphysInfo.convertedEphysTimestamps <= ephysMimicEndTime(j), 1, 'last');
+        end
+        
+        
+    end
+    
+    
+end
+
+% plot PSTH!
+figure('Color', 'white','WindowState','maximized'); clf
+uniqueLevel = unique(C.attenuationLevel);
+colors = parula(length(uniqueLevel));
+for i = 1:length(unique(C.attenuationLevel))
+    row = 1;
+    spikeRateArray = [];
+    for j = 1:length(spikeRate)
+        if spikeRate{j, 2} == uniqueLevel(i)
+            spikeRateArray(row, :) = spikeRate{j, 1};
+            row = row + 1;
+        end
+    end
+    
+    x = linspace(mimicWindow(1), mimicWindow(2), size(spikeRateArray, 2));
+    shadedErrorBar(x, nanmean(spikeRateArray), nanstd(spikeRateArray), ...
+        'lineprops', {'linewidth', 2.5, 'color', colors(i,:)}, 'patchSaturation', .1);
+    xlabel('time (s)');
+    ylabel('spike rate (spikes/s)');
+
+    
+end
+
+hold on;
+ylim([-30, 140]);
+xlim([mimicWindow(1), mimicWindow(2)]);
+plot([mimicWindow(1), mimicWindow(2)], [-20, -20], '-k');
+for i = 1:C.fastBBNRepeat
+    plot([0.01*(i-1), 0.01*(i-1)], [-20, -17], '-k', 'HandleVisibility', 'off');
+end
+
+legend('-27 attenuation', '-24', '-21', '-18', '-15', '-12', '-9', '-6', '-3', '-0', 'BBN stim');
+
+title('CWC spike rate during chewing mimic, -0 = 70dBSPL');
+
+% plot([0, 0], [-30, 140], '--m');
+% plot([0.02, 0.02], [-30, 140], '--r');
+
+
+
+
 
 
 

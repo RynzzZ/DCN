@@ -28,6 +28,7 @@ ephysEventTimes = eventTimes(logical(info.eventId) & ismember(channel, eventChan
 % get spike event times
 spikeEvents = load(fullfile(rootFolder, 'Data', session, 'Spike.mat'), 'Keyboard', 'Food', 'AudioSyn');
 
+
 spikeEventTimes = sort([spikeEvents.Food.times; spikeEvents.AudioSyn.times]);
 
 % check if the length of event time in spike and in openephys are the same.

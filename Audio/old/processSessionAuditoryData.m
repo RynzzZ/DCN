@@ -108,15 +108,15 @@ for i = 1:length(spike.keyboardInput)
               
                 tempInd = spikeStopInds(j) + s.intervalDuration/2*s.audioFs;
                 
-                % quality check
-                if mod(j, 8) == 0
-                    figure;
-                    x = linspace(startTime, stopTime, ephysStopInds(j) - ephysStartInds(j) + 1);
-                    plot(x, chunkEphysData); axis tight; box off; hold on;
-                    y = ones(size(locs))*s.threshold;
-                    scatter(x(locs), y, '.', 'r');
-                    title(['frequency = ', num2str(freq.J(j)/1000), 'kHz']);
-                end
+%                 % quality check
+%                 if mod(j, 8) == 0
+%                     figure;
+%                     x = linspace(startTime, stopTime, ephysStopInds(j) - ephysStartInds(j) + 1);
+%                     plot(x, chunkEphysData); axis tight; box off; hold on;
+%                     y = ones(size(locs))*s.threshold;
+%                     scatter(x(locs), y, '.', 'r');
+%                     title(['frequency = ', num2str(freq.J(j)/1000), 'kHz']);
+%                 end
             end
                        
             if size(FR, 2) == 1; FR = FR'; end

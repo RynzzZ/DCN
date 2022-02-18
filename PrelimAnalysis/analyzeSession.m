@@ -104,13 +104,21 @@ if analyzeSpike
     
     % clean the food trigger - get rid of false trigger (trigger but no
     % food delivered)
-    spike.foodTriggerTimes = spikeTemp.Food.times;
-    inds = find(diff(spike.foodTriggerTimes)<s.foodMinInterval);
-    spike.foodTriggerTimes(inds) = [];
-    spike.totalFoodNum = length(spike.foodTriggerTimes);
+    if any(spikeTemp.Food.times)
+        spike.foodTriggerTimes = spikeTemp.Food.times;
+        inds = find(diff(spike.foodTriggerTimes)<s.foodMinInterval);
+        spike.foodTriggerTimes(inds) = [];
+        spike.totalFoodNum = length(spike.foodTriggerTimes);
+    end
     
+    % get and save keyboard inputs
     spike.keyboardInput = char(spikeTemp.Keyboard.codes(:, 1));
     spike.keyboardTimes = spikeTemp.Keyboard.times;
+
+    % only process the estim signal if this is an estim session
+    if any(strcmp(fieldnames(spikeTemp), 'EStim'))
+        spike.EstimTimes = spikeTemp.EStim.times;        
+    end
     
     save(fullfile(sessionFolder, 'spikeAnalyzed.mat'), 'spike', '-v7.3');
     fprintf('spikeAnalyzed.mat saved in %s\n', sessionFolder)    
