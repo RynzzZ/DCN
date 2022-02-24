@@ -1,14 +1,14 @@
 %% temp script 
 
-session = '20211108_000';
+session = '20211216_000';
 trialID = 2;
+ephysChannel = 28;
 
 % settings
 s.hasMic = true; % whether this session contains good microphone recordings
 s.hasJawTrace = true; % whether this session contains video tracking for jaw trace
 s.supressFigure = false; % whether to only process the data but supress plotting figures
-s.unitID = 128;
-s.crunchSearchTimeWindow = 4; % sec
+s.crunchSearchTimeWindow = 5; % sec
 s.crunchTimeWindow = 0.02; % sec
 s.chewingSearchTimeWindow = 10; % sec
 s.chewingTimeWindow = 3; % sec
@@ -23,7 +23,7 @@ if exist('varargin', 'var'); for trialID = 1:2:length(varargin); s.(varargin{tri
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN\';
 sessionFolder = fullfile(rootFolder, 'Data', session);
-
+saveFolder = fullfile(rootFolder, 'Data', session, 'trialFigs', 'crunch');
 
 % load spikeAnalyzed.mat
 if ~exist(fullfile(sessionFolder, 'spikeAnalyzed.mat'), 'file')
@@ -51,17 +51,17 @@ load(fullfile(rootFolder, 'Data', session, 'sessionEphysInfo.mat'), 'sessionEphy
 mapFile = sessionEphysInfo.mapFile;
 load(fullfile('Z:\obstacleData\ephys\channelMaps\kilosort', [mapFile, '.mat']), 'channelNum_OpenEphys');
 
-neuralData = load(fullfile(sessionFolder, 'neuralData.mat'));
-ind = find(neuralData.unit_ids == s.unitID);
-spkRates = neuralData.spkRates(ind, :);
-spkRateTimes = neuralData.timeStamps;
-bestChannel = neuralData.bestChannels(ind, :);
+% neuralData = load(fullfile(sessionFolder, 'neuralData.mat'));
+% ind = find(neuralData.unit_ids == s.unitID);
+% spkRates = neuralData.spkRates(ind, :);
+% spkRateTimes = neuralData.timeStamps;
+% bestChannel = neuralData.bestChannels(ind, :);
 
 getVoltage = @(data) double(data)*sessionEphysInfo.bitVolts; % extract voltage from memmapfile, converting to votlage, highpassing, and only return specific channel
 contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
 data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
     'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
-unitVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(bestChannel), :));
+unitVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), :));
 
 
 % load data

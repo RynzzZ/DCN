@@ -2,7 +2,7 @@ function analyzeTrial(session, varargin)
 
 % settings
 s.hasMic = false; % whether this session contains good microphone recordings
-s.crunchSearchTimeWindow = 4; % sec
+s.crunchSearchTimeWindow = 5; % sec
 s.crunchTimeWindow = 0.02; % sec
 s.chewingSearchTimeWindow = 12; % sec, detemine the time range (how long) of the chewing search 
 s.chewingSearchStartTimeShift = 4; % sec, how many seconds after the trial start should we strat the chewing search

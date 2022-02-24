@@ -86,12 +86,15 @@ switch type
             idd = find(sig(idx+1:end) < cross,1,'first');
             idd = idd + idx;
             ncrs = 1;
+            round = 1;
         else
             ncrs = 0;
             idd = [];
+            idx = [];
+            round = 0;
         end
         
-        while ~isempty(idx) && ~isempty(idd) || ncrs == 1
+        while ~isempty(idx) && ~isempty(idd) || round == 1
             cros = [cros; sig(idx)];
             locs = [locs; idx];
             idx = find(sig(idd+1:end) > th,1,'first');
@@ -101,8 +104,9 @@ switch type
                 idd = idd + idx;
                 ncrs = ncrs +1;
             else
-                idd = [];
+                idd = [];         
             end
+            round = round + 1;
         end
         
     case 'thresholdDown'
