@@ -120,6 +120,11 @@ if analyzeSpike
         spike.EstimTimes = spikeTemp.EStim.times;        
     end
     
+    % only process the opto signal if this is an opto session
+    if any(strcmp(fieldnames(spikeTemp), 'OptoTrain'))
+        spike.optoTrainTimes = spikeTemp.OptoTrain.times;
+    end
+    
     save(fullfile(sessionFolder, 'spikeAnalyzed.mat'), 'spike', '-v7.3');
     fprintf('spikeAnalyzed.mat saved in %s\n', sessionFolder)    
 end

@@ -6,10 +6,12 @@ s.RLFBBNDuration = 0.2;
 s.RLFBBNIntervalDuration = 0.2;
 s.RLFBFDuration = 0.2;
 s.RLFBFIntervalDuration = 0.2;
-s.intervalDuration = 0.05;
-s.threshold = -300;
+s.intervalDuration = 0.4;
+s.threshold = -150;
 s.thresholdType = 'thresholdDown';
 s.plotType = '';
+s.suppressFig = true;
+s.plotType = []; % choose among 'responseMap', 'RLFBBN' or 'RLFBF'.
 
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
 
@@ -49,10 +51,11 @@ else
     contFiles = dir(fullfile(sessionEphysInfo.ephysFolder, '*.continuous'));
     data = memmapfile(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), ...
         'Format', {'int16', [sessionEphysInfo.channelNum sessionEphysInfo.smps], 'Data'}, 'Writable', false);
+    ephysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), :));
+    ephysTime = sessionEphysInfo.convertedEphysTimestamps;
 end
 
 % get baseline firing rate
-ephysTime = sessionEphysInfo.convertedEphysTimestamps;
 startTime = spike.keyboardTimes(find(spike.keyboardTimes>= ephysTime(1), 1, 'first'));
 endTime = ephysTime(end)-1;
 
@@ -82,24 +85,26 @@ if isempty(responses)
 end
 
 %------------------------plot to determine the threshold------------------%
-
-ind = strfind(convertCharsToStrings(spike.keyboardInput), 'J');
-ind = ind(1);
-startTime = spike.keyboardTimes(ind);
-endTime = startTime + 10;
-
-startInd = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-endInd = find(sessionEphysInfo.convertedEphysTimestamps <= endTime, 1, 'last');
-
-x = sessionEphysInfo.convertedEphysTimestamps(startInd:endInd);
-y = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), startInd:endInd));
-figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-plot(x, y);
-
+if ~s.suppressFig
+    ind = strfind(convertCharsToStrings(spike.keyboardInput), 'K');
+    ind = ind(1);
+    startTime = spike.keyboardTimes(ind);
+    endTime = startTime + 10;
+    
+    startInd = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
+    endInd = find(sessionEphysInfo.convertedEphysTimestamps <= endTime, 1, 'last');
+    
+    x = sessionEphysInfo.convertedEphysTimestamps(startInd:endInd);
+    y = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), startInd:endInd));
+    figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
+    plot(x, y);
+    axis tight
+end
 %---------------------------processing the data---------------------------%
-
+disp(session)
 disp('start processing...')
-for i = 1:length(spike.keyboardInput)
+resultMatrix = cell(length(spike.keyboardInput), 1);
+parfor i = 1:length(spike.keyboardInput)
     if strcmp(s.plotType, 'responseMap')
         if strcmp(spike.keyboardInput(i), 'E') || strcmp(spike.keyboardInput(i), 'B')
             continue
@@ -113,466 +118,176 @@ for i = 1:length(spike.keyboardInput)
             continue
         end
     end
-
-    disp(spike.keyboardInput(i));
+    
+    keyboardTime = spike.keyboardTimes(i);
+    if any(strcmp(fieldnames(spike), 'optoTrainTimes'))
+        if sum(spike.optoTrainTimes >= keyboardTime & spike.optoTrainTimes <= keyboardTime + 5) > 50
+            continue
+        end
+    end
     
     switch(spike.keyboardInput(i))
         case 'J'
             keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
+            toneNumber = length(freq.J);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'J');
+      
             
-            spikeStartInds = nan(length(freq.J), 1);
-            ephysStartInds = nan(length(freq.J), 1);
-            spikeStopInds = nan(length(freq.J), 1);
-            ephysStopInds = nan(length(freq.J), 1);
-            FR = nan(length(freq.J), 1);
+        case 'K'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.K);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'K');
             
-            for j = 1:length(freq.J)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.J))
-                end
-                
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-                
-                % quality check
-                if mod(j, 8) == 0
-                    figure;
-                    x = linspace(startTime, stopTime, ephysStopInds(j) - ephysStartInds(j) + 1);
-                    plot(x, chunkEphysData); axis tight; box off; hold on;
-                    y = ones(size(locs))*s.threshold;
-                    scatter(x(locs), y, '.', 'r');
-                    title(['frequency = ', num2str(freq.J(j)/1000), 'kHz']);
-                end
-            end
-                       
-            if size(FR, 2) == 1; FR = FR'; end
+        case 'L'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.L);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'L');
+            
+        case 'H'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.H);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'H');
+            
+        case 'U'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.U);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'U');
+            
+        case 'O'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.O);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'O');
+            
+        case 'P'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.P);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'P');
+            
+        case 'Y'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(freq.Y);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'Y');
+            
+        case 'B'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(loudness.RLFBBN);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'B');
+            
+        case 'E'
+            keyboardTime = spike.keyboardTimes(i);
+            toneNumber = length(loudness.RLFBF);
+            [resultMatrix{i, 1}] = processAuditoryData(keyboardTime, spike.audioSignal, spike.audioSignalTimes, ...
+                ephysData, ephysTime, toneNumber, s, 'E');
+            
+    end
+    
+    
+end
+
+disp('Parfor loop completed! Start formatting the results!')
+
+for i = 1:length(spike.keyboardInput)
+    switch(spike.keyboardInput(i))
+        case 'J'
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.J)
                 responses.J = FR;
             else
                 responses.J = [responses.J; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
-            
         case 'K'
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.K), 1);
-            ephysStartInds = nan(length(freq.K), 1);
-            spikeStopInds = nan(length(freq.K), 1);
-            ephysStopInds = nan(length(freq.K), 1);
-            FR = nan(length(freq.K), 1);
-            
-            for j = 1:length(freq.K)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.K))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.K)
                 responses.K = FR;
             else
                 responses.K = [responses.K; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'L'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.L), 1);
-            ephysStartInds = nan(length(freq.L), 1);
-            spikeStopInds = nan(length(freq.L), 1);
-            ephysStopInds = nan(length(freq.L), 1);
-            FR = nan(length(freq.L), 1);
-            
-            for j = 1:length(freq.L)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.L))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first')) + tempInd;
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.L)
                 responses.L = FR;
             else
                 responses.L = [responses.L; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'H'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.H), 1);
-            ephysStartInds = nan(length(freq.H), 1);
-            spikeStopInds = nan(length(freq.H), 1);
-            ephysStopInds = nan(length(freq.H), 1);
-            FR = nan(length(freq.H), 1);
-            
-            for j = 1:length(freq.H)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.H))
-                end
-
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + int32(tempInd));
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.H)
                 responses.H = FR;
             else
                 responses.H = [responses.H; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'U'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.U), 1);
-            ephysStartInds = nan(length(freq.U), 1);
-            spikeStopInds = nan(length(freq.U), 1);
-            ephysStopInds = nan(length(freq.U), 1);
-            FR = nan(length(freq.U), 1);
-            
-            for j = 1:length(freq.U)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.U))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.U)
                 responses.U = FR;
             else
                 responses.U = [responses.U; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'O'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.O), 1);
-            ephysStartInds = nan(length(freq.O), 1);
-            spikeStopInds = nan(length(freq.O), 1);
-            ephysStopInds = nan(length(freq.O), 1);
-            FR = nan(length(freq.O), 1);
-            
-            for j = 1:length(freq.O)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.O))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.O)
                 responses.O = FR;
             else
                 responses.O = [responses.O; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'P'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.P), 1);
-            ephysStartInds = nan(length(freq.P), 1);
-            spikeStopInds = nan(length(freq.P), 1);
-            ephysStopInds = nan(length(freq.P), 1);
-            FR = nan(length(freq.P), 1);
-            
-            for j = 1:length(freq.P)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.P))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.P)
                 responses.P = FR;
             else
                 responses.P = [responses.P; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
         case 'Y'
-
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            spikeStartInds = nan(length(freq.Y), 1);
-            ephysStartInds = nan(length(freq.Y), 1);
-            spikeStopInds = nan(length(freq.Y), 1);
-            ephysStopInds = nan(length(freq.Y), 1);
-            FR = nan(length(freq.Y), 1);
-            
-            for j = 1:length(freq.Y)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(freq.Y))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.003, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.toneDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.intervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.Y)
                 responses.Y = FR;
             else
                 responses.Y = [responses.Y; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(freq.(spike.keyboardInput(i)), FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
-        case 'B'
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            for j = 1:length(loudness.RLFBBN)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(loudness.RLFBBN))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.002, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.RLFBBNDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-              
-                tempInd = int32(spikeStopInds(j) + s.RLFBBNIntervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
-            if isempty(responses.B)
-                responses.B = FR;
-            else
-                responses.B = [responses.B; FR];
-            end
-            
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(loudness.RLFBBN, FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
-            
         case 'E'
-            keyboardTime = spike.keyboardTimes(i);
-            tempInd = int32(find(spike.audioSignalTimes >= keyboardTime, 1, 'first'));
-            
-            for j = 1:length(loudness.RLFBF)
-                if mod(j, 10) == 1
-                    fprintf('%f ', j/length(loudness.RLFBF))
-                end
-                spikeStartInds(j) = int32(find(spike.audioSignal(tempInd:end) >= 0.002, 1, 'first') + tempInd);
-                startTime = spike.audioSignalTimes(spikeStartInds(j));
-                ephysStartInds(j) = find(sessionEphysInfo.convertedEphysTimestamps >= startTime, 1, 'first');
-                
-                spikeStopInds(j) = int32(spikeStartInds(j) + s.RLFBFDuration*s.audioFs);
-                stopTime = spike.audioSignalTimes(spikeStopInds(j));
-                ephysStopInds(j) = find(sessionEphysInfo.convertedEphysTimestamps <= stopTime, 1, 'last');
-                
-                
-                chunkEphysData = getVoltage(data.Data.Data(channelNum_OpenEphys(ephysChannel), ephysStartInds(j):ephysStopInds(j)));
-                [~, locs, ncrs] = crossdet(chunkEphysData, s.threshold, s.thresholdType);
-                % spkNum = ncrs - sum(diff(locs)/sessionEphysInfo.fs <= 0.006);
-                disp(ncrs);
-                FR(j) = ncrs/(stopTime - startTime);
-                
-                tempInd = int32(spikeStopInds(j) + s.RLFBFIntervalDuration/2*s.audioFs);
-            end
-            
-            if size(FR, 2) == 1; FR = FR'; end
+            FR = [];
+            FR = resultMatrix{i, 1};
             if isempty(responses.E)
                 responses.E = FR;
             else
                 responses.E = [responses.E; FR];
             end
             
-            figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-            plot(loudness.RLFBF, FR);
-            title(['Keyboard Input ', spike.keyboardInput(i)]);
-            
+        case 'B'
+            FR = [];
+            FR = resultMatrix{i, 1};
+            if isempty(responses.B)
+                responses.B = FR;
+            else
+                responses.B = [responses.B; FR];
+            end         
     end
 end
-
-
-%
-%             startInd = find(sessionEphysInfo.convertedEphysTimestamps >= 7.5, 1, 'first');
-%             endInd = find(sessionEphysInfo.convertedEphysTimestamps <= 68.5, 1, 'last');
-%             x = sessionEphysInfo.convertedEphysTimestamps(startInd:endInd);
-%             y = data.Data.Data(channelNum_OpenEphys(ephysChannel), startInd:endInd);
-%             figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-%             plot(x, y); hold on;
-%             for i = 1:length(ephysStartInds)
-%                 x1 = sessionEphysInfo.convertedEphysTimestamps(ephysStartInds(i));
-%                 plot([x1, x1], [min(y), max(y)], 'r-');
-%                 x2 = sessionEphysInfo.convertedEphysTimestamps(ephysStopInds(i));
-%                 plot([x2, x2], [min(y), max(y)], 'c-');
-%             end
 
 
 

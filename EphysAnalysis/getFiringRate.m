@@ -5,7 +5,7 @@ s.kernel = 'doubleExp';  % 'gauss', or 'doubleExp'
 s.kernelSig = .02;       % (s) if a gaussian kernel is used
 s.kernelRise = .0001;     % (s) rise for double exponential kernel
 s.kernelFall = .02;      % (s) fall for double exponential kernel
-s.fs = 1000;             % (smps/s) sampling frequency of instantaneous firing rate
+s.fs = 300;             % (smps/s) sampling frequency of instantaneous firing rate
 s.tLims = [];           % (s) [min max] times for x axis
 
 

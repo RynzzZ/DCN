@@ -7,9 +7,10 @@ function sessionEphysInfo = getSessionEphysInfo(session)
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN';
 sessionFolder = fullfile(rootFolder, 'Data', session);
-sessionFolderFiles = dir(fullfile(rootFolder, 'Data', session, '20*'));
-ephysFolder = [sessionFolderFiles([sessionFolderFiles.isdir] == 1).name];
-ephysFolder = fullfile(sessionFolder, ephysFolder, 'Record Node 101\');
+% sessionFolderFiles = dir(fullfile(rootFolder, 'Data', session, '20*'));
+% ephysFolder = [sessionFolderFiles([sessionFolderFiles.isdir] == 1).name];
+% ephysFolder = fullfile(sessionFolder, ephysFolder, 'Record Node 101\');
+ephysFolder = 'Z:\Qianyun\DCN\Data\20220317_000\2022-03-17_14-52-42\Record Node 109';
 sessionEphysInfo.ephysFolder = ephysFolder;
 
 % get source name (e.g. 100, 107) and number of channels
@@ -32,6 +33,7 @@ sessionEphysInfo.fs = info.header.sampleRate;
 sessionEphysInfo.bitVolts = info.header.bitVolts;
 
 % get number of samples
+
 if ~exist(fullfile(sessionEphysInfo.ephysFolder, [contFiles(1).name(1:end-12), 's.dat']), 'file')
     error('.dat file NOT exist! Run packContFile_QZ.py first!');
 else

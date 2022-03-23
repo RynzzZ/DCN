@@ -164,7 +164,14 @@ for i = 1:length(channelNum_OpenEphys)
     CEDS64ChanComment( fhand2, wavechan, '');
     
     % prepare ephys data for writing into the file
-    waveDataVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(i), :));
+%     if any(strfind(sessionEphysInfo.ephysFolder, '101'))
+%         disp('recording node 101')
+        waveDataVoltage = getVoltage(data.Data.Data(channelNum_OpenEphys(i), :));
+%     elseif any(strfind(sessionEphysInfo.ephysFolder, '109'))
+%         disp('recording node 109')
+%         waveDataVoltage = getVoltage(data.Data.Data(i, :));
+%     end
+    % waveDataVoltage = getVoltage(data.Data.Data(i, :));
     waveDataResampled = resample(waveDataVoltage,p,q); % resample the data to fit into the timebase of the spike file
     waveDataNew = int16(waveDataResampled); % convert back to int16 type
     

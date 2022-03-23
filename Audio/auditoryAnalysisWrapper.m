@@ -1,25 +1,25 @@
 %% settings
 
-sessionList = {'20211111_003'};
-ephysChannelList = [24];
+sessionList = { '20220312_001'};
+ephysChannelList = [25];
 
 crudeStartFreq = 4500; 
 crudeStopFreq = 72000; 
 crudeSteps = 101;
 crudeFreqs = logspace(log10(crudeStartFreq), log10(crudeStopFreq), crudeSteps); 
 
-fineStartFreq = 7500;
-fineStopFreq = 30000;
+fineStartFreq = 4500;
+fineStopFreq = 72000;
 fineSteps = 101;
 fineFreqs = logspace(log10(fineStartFreq), log10(fineStopFreq), fineSteps); 
 
-freq.RLFBF = 21000;
-load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BF21K_10to70DBSPL_1DBSPLInterval_RateLevelFunction_LoudnessLevel.mat');
-loudness.RLFBF = loudnessLevel;
+freq.RLFBF = 12000;
+load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BF12KHz_5to75DBSPL_1DBSPLInterval_RateLevelFunction.mat');
+loudness.RLFBF = randomLevel;
 clear loudnessLevel;
 
-load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BBNNEW_10to70DBSPL_1DBSPLInterval_RateLevelFunction_BBNLoudnessLevel.mat');
-loudness.RLFBBN = BBNLoudnessLevel;
+load('C:\Users\Qianyun Zhang\OneDrive\AudioFiles\RateLevelFunction\BBNNEW_5to75DBSPL_1DBSPLInterval_RateLevelFunction.mat');
+loudness.RLFBBN = randomLevel;
 
 
 freq.J = crudeFreqs;
@@ -28,31 +28,32 @@ freq.L = crudeFreqs;
 freq.H = crudeFreqs;
 
 loudness.J = 70; % unit: DBSPL;
-loudness.K = 50;
-loudness.L = 40;
-loudness.H = 30;
+loudness.K = 60;
+loudness.L = 50;
+loudness.H = 40;
 
 freq.U = fineFreqs;
 freq.O = fineFreqs;
 freq.P = fineFreqs;
 freq.Y = fineFreqs;
 
-loudness.U = 40;
-loudness.O = 30;
-loudness.P = 20;
-loudness.Y = 15;
+loudness.U = 30;
+loudness.O = 20;
+loudness.P = 10;
+loudness.Y = 5;
 
 %% process data 
+if ~exist('responses', 'var')
+    responses = [];
+end
+ephysThresh = -150;
 
 for i = 1:length(sessionList)
     session = sessionList{i};
     ephysChannel = ephysChannelList(i);
     
-    if ~exist('responses', 'var')
-        [responses, baselineFR] = processSessionAuditoryData(session, freq, loudness, ephysChannel);
-    else
-        [responses, baselineFR] = processSessionAuditoryData(session, freq, loudness, ephysChannel, responses);
-    end
+    [responses, baselineFR] = processSessionAuditoryData(session, freq, loudness, ...
+        ephysChannel, responses, 'threshold', ephysThresh);   
     
 end
 
@@ -108,7 +109,7 @@ end
 % dim 3 -> response
 
 % crude search
-keys = { 'K', 'L', 'H'};
+keys = {'K', 'L', 'H', 'U', 'O', 'P', 'Y'};
 
 responseData = nan(crudeSteps*length(keys), 3);
 for i = 1:length(keys)
@@ -119,12 +120,15 @@ for i = 1:length(keys)
 end
 
 Freqs = logspace(log10(crudeStartFreq), log10(crudeStopFreq), crudeSteps*10);
-Levels = 50:-1:30;
+Levels = 50:-1:20;
 [F,L]=meshgrid(Freqs, Levels);
 
 Vq = griddata(responseData(:,1), responseData(:,2),responseData(:,3),F,L,'cubic');
 
-figure('Color', 'white','WindowState','maximized'); clf
+figure('Color', 'white','WindowState','maximized'); clf;
+rows = 2; cols = 2;
+plotInd = 1;
+subplot(rows, cols, plotInd);
 imagesc(Freqs(:)/1000,Levels(:),Vq);
 colorbar
 set(gca,'YDir','normal');
@@ -137,45 +141,47 @@ ylabel('Sound Level (dB SPL)');
 xlabel('Frequency (kHz)');
 title([session, ' Output Cell Ch', num2str(ephysChannel)], 'Interpreter', 'none');
 
+% % fine search
+% keys = {'U', 'O', 'P', 'Y'};
+% 
+% responseData = nan(fineSteps*length(keys), 3);
+% for i = 1:length(keys)
+%     for j = 1:crudeSteps
+%         responseData(fineSteps*(i-1)+j, :) = [freq.(keys{i})(j), loudness.(keys{i}),...
+%             mean(responses.(keys{i})(:, j))];
+%     end
+% end
+% 
+% Freqs = logspace(log10(fineStartFreq), log10(fineStopFreq), fineSteps*10);
+% Levels = 40:-1:15;
+% [F,L]=meshgrid(Freqs, Levels);
+% 
+% Vq = griddata(responseData(:,1), responseData(:,2),responseData(:,3),F,L,'cubic');
+% 
+% figure('Color', 'white','WindowState','maximized'); clf
+% imagesc(Freqs(:)/1000,Levels(:),Vq);
+% colorbar
+% set(gca,'YDir','normal');
+% set(gca, 'XScale', 'log');
+% 
+% xticks([15 20 25 30])
+% xticklabels({'15', '20', '25', '30'})
+% h=gca; h.XAxis.TickLength = [0 0];
+% ylabel('Sound Level (dB SPL)');
+% xlabel('Frequency (kHz)');
+% title([session, ' Output Cell Ch', num2str(ephysChannel)], 'Interpreter', 'none');
 
-% fine search
-keys = {'U', 'O', 'P', 'Y'};
 
-responseData = nan(fineSteps*length(keys), 3);
-for i = 1:length(keys)
-    for j = 1:crudeSteps
-        responseData(fineSteps*(i-1)+j, :) = [freq.(keys{i})(j), loudness.(keys{i}),...
-            mean(responses.(keys{i})(:, j))];
-    end
-end
-
-Freqs = logspace(log10(fineStartFreq), log10(fineStopFreq), fineSteps*10);
-Levels = 40:-1:15;
-[F,L]=meshgrid(Freqs, Levels);
-
-Vq = griddata(responseData(:,1), responseData(:,2),responseData(:,3),F,L,'cubic');
-
-figure('Color', 'white','WindowState','maximized'); clf
-imagesc(Freqs(:)/1000,Levels(:),Vq);
-colorbar
-set(gca,'YDir','normal');
-set(gca, 'XScale', 'log');
-
-xticks([15 20 25 30])
-xticklabels({'15', '20', '25', '30'})
-h=gca; h.XAxis.TickLength = [0 0];
-ylabel('Sound Level (dB SPL)');
-xlabel('Frequency (kHz)');
-title([session, ' Output Cell Ch', num2str(ephysChannel)], 'Interpreter', 'none');
-
-
-%% RLF Plots for BBN and BF
+% RLF Plots for BBN 
 
 % RLF for BBN
+% responses = respnosesBackup;
 BBNFR = responses.B;
-BBNFR = mean(BBNFR);
+BBNFR = mean(responses.B);
+BBNSTD = std(responses.B);
 [sortedLoudness, inds] = sort(loudness.RLFBBN);
 sortedBBNFR = BBNFR(inds);
+sortedBBNSTD = BBNSTD(inds);
 
 % apply a 3-point trigular filter
 filteredBBNFR = nan(size(sortedBBNFR));
@@ -189,23 +195,68 @@ for i = 1:length(sortedBBNFR)
     end
 end
 
+% RLF plot for BF
+% responses = responsesBFRLF2;
+if ~isempty(responses.E)
+    BFFR = responses.E;
+    BFFR = mean(responses.E);
+    BFSTD = std(responses.E);
+    [sortedLoudness, inds] = sort(loudness.RLFBF);
+    sortedBFFR = BFFR(inds);
+    sortedBFSTD = BFSTD(inds);
+    
+    % apply a 3-point trigular filter
+    filteredBFFR = nan(size(sortedBFFR));
+    for i = 1:length(sortedBFFR)
+        if i == 1
+            filteredBFFR(i) = (2*sortedBFFR(i) + sortedBFFR(i+1))/3;
+        elseif i == length(sortedBFFR)
+            filteredBFFR(i) = (2*sortedBFFR(i) + sortedBFFR(i-1))/3;
+        else
+            filteredBFFR(i) = (2*sortedBFFR(i) + sortedBFFR(i-1) + sortedBFFR(i+1))/4;
+        end
+    end
+end
 
-figure('Color', 'white', 'position', get(0,'ScreenSize')); clf;
-plot(sortedLoudness, filteredBBNFR, 'LineWidth', 2);
+
+% Plot 2 - RLF Plots, with shaded error bar
+plotInd = plotInd + 1;
+subplot(rows, cols, plotInd);
+shadedErrorBar(sortedLoudness, sortedBBNFR, sortedBBNSTD, 'lineProps', {'-', 'LineWidth', 2});
 
 hold on; box off;
 plot([sortedLoudness(1), sortedLoudness(end)], [baselineFR, baselineFR],...
-    '--', 'Color', [0.8 0.8 0.8], 'LineWidth', 1.5);
+    '--', 'Color', [0.8 0.8 0.8], 'LineWidth', 1.5); hold on;
+xlim([sortedLoudness(1), sortedLoudness(end)]);
 xlabel('loudness (dB SPL)');
 ylabel('rate (spk/s)');
 legend('BBN', 'baseline');
-title([session, ' Ch', num2str(ephysChannel), ' BBNRLF'], 'Interpreter', 'none');
+title([session, ' Ch', num2str(ephysChannel), ' RLFs'], 'Interpreter', 'none');
 
+if ~isempty(responses.E)
+    shadedErrorBar(sortedLoudness, sortedBFFR, sortedBFSTD, 'lineProps', {'-k', 'LineWidth', 2});
+    xlim([sortedLoudness(1), sortedLoudness(end)]);
+    legend('BBN', 'baseline', 'BF = 12KHz');
+end
 
+% Plot 3 - RLF Plots with 3-point triangular filter
+plotInd = plotInd + 1;
+subplot(rows, cols, plotInd);
+plot(sortedLoudness, filteredBBNFR, '-', 'LineWidth', 2);
 
+hold on; box off;
+plot([sortedLoudness(1), sortedLoudness(end)], [baselineFR, baselineFR],...
+    '--', 'Color', [0.8 0.8 0.8], 'LineWidth', 1.5); hold on;
+xlim([sortedLoudness(1), sortedLoudness(end)]);
+xlabel('loudness (dB SPL)');
+ylabel('rate (spk/s)');
+legend('BBN', 'baseline');
+title([session, ' Ch', num2str(ephysChannel), ' RLFs'], 'Interpreter', 'none');
 
-
-
+if ~isempty(responses.E)
+    plot(sortedLoudness, filteredBFFR, '-k', 'LineWidth', 2); 
+    legend('BBN', 'baseline', 'BF = 12KHz');
+end
 
 
 
