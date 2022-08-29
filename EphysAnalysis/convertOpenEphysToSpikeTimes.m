@@ -7,6 +7,7 @@ function convertOpenEphysToSpikeTimes(session, varargin)
 % settings
 s.forceAlignment = false;  % whether to run the alignement algorithm to find best matches between spike and ephys sync signals // if false, only runs the algorithm when there are different numbers of events in each channel
 s.plot = true;
+s.node = '101';
 
 if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
 
@@ -14,9 +15,8 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN';
 
-
 % getting ephys session info
-sessionEphysInfo = getSessionEphysInfo(session);
+sessionEphysInfo = getSessionEphysInfo(session, 'node', s.node);
 ephysFolder = sessionEphysInfo.ephysFolder;
 
 % get ephys event times

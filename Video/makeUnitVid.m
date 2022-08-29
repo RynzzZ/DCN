@@ -19,11 +19,11 @@ s.specificTimeWindows = []; % put in specific start times and end times for gene
 s.feedingTrialTimeWindow = 10; % the duration of each food trial.
 s.timeBuffer = [0.5, 0]; % how many seconds before and after reward delivery to show. 
 
-s.ephysChannel = 23;
+s.ephysChannel = 11;
 s.ephysThresh = -200;
 
 s.contrastLims = [.1 .9]; % pixels at these proportional values are mapped to 0 and 255
-s.playbackSpeed = 0.2;
+s.playbackSpeed = 0.5;
 s.voltageWindow = .8;
 s.audioGain = 15;
 s.yLims = [-500 500];

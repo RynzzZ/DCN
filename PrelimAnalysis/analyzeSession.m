@@ -9,7 +9,6 @@ if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = var
 
 % initializations
 rootFolder = 'Z:\Qianyun\DCN\';
-gitFolder = 'D:\DCN_Project\Github\DCN\';
 sessionFolder = fullfile(rootFolder, 'Data', session);
 
 % determine the content to analyze
@@ -62,7 +61,7 @@ if analyzeCamera
     
     % interpolate the jaw movement to get rid of nans, method = 'spline'
     inds = find(~isnan(videoTracking.jawDistance));
-    videoTracking.jawDistance = interp1(inds, videoTracking.jawDistance(inds), 1:length(videoTracking.jawDistance), 'spline')';
+    videoTracking.jawDistance = interp1(inds, videoTracking.jawDistance(inds), 1:length(videoTracking.jawDistance), 'nearest')';
     
     % make the tongue movement into a binary format (exist in the frame or
     % not)
@@ -114,7 +113,47 @@ if analyzeSpike
     % get and save keyboard inputs
     spike.keyboardInput = char(spikeTemp.Keyboard.codes(:, 1));
     spike.keyboardTimes = spikeTemp.Keyboard.times;
-
+    
+    % get rid of false 'F' and cooresponding keyboard time according to
+    % minimal food trial invervals
+    FInds = nan(200, 1);
+    FCount = 1;
+    for i = 1:length(spike.keyboardInput)
+        if strcmp(spike.keyboardInput(i), 'F')
+            FInds(FCount, 1) = i;
+            FCount = FCount + 1;
+        end
+    end
+    
+    if exist('inds', 'var')
+        spike.keyboardTimes(FInds(inds)) = [];
+        spike.keyboardInput(FInds(inds)) = [];
+    end
+    
+    % get rid of false 'F' and cooresponding keybord time according to
+    % manule keyboard input indication
+    
+    keyboardInds = nan(200, 1);
+    FInds = nan(200, 1);
+    FCount = 0;
+    tempInd = 1;
+    for i = 1:length(spike.keyboardInput)
+        if strcmp(spike.keyboardInput(i), 'F') 
+            FCount = FCount + 1;
+            if strcmp(spike.keyboardInput(i+1), 'Z') || strcmp(spike.keyboardInput(i+1), '9')
+                keyboardInds(tempInd, 1) = i;
+                FInds(tempInd, 1) = FCount;
+                tempInd = tempInd + 1;
+            end
+        end
+    end
+    
+    if any(keyboardInds)
+        spike.keyboardInput(rmmissing(keyboardInds)) = [];
+        spike.keyboardTimes(rmmissing(keyboardInds)) = [];
+        spike.foodTriggerTimes(rmmissing(FInds)) = [];
+    end
+    
     % only process the estim signal if this is an estim session
     if any(strcmp(fieldnames(spikeTemp), 'EStim'))
         spike.EstimTimes = spikeTemp.EStim.times;        

@@ -1,16 +1,22 @@
-function sessionEphysInfo = getSessionEphysInfo(session)
+function sessionEphysInfo = getSessionEphysInfo(session, varargin)
 
 % gets ephys folder name, base name for recording, number of channels,
 % sampling frequency, number of samples, bitvols conversion factor
+
+% settings
+s.node = '101';
+
+if exist('varargin', 'var'); for i = 1:2:length(varargin); s.(varargin{i}) = varargin{i+1}; end; end  % parse name-value pairs
+
 
 % get name of ephys folder
 rootFolder = 'Z:\Qianyun\DCN\';
 gitFolder = 'D:\DCN_Project\Github\DCN';
 sessionFolder = fullfile(rootFolder, 'Data', session);
-% sessionFolderFiles = dir(fullfile(rootFolder, 'Data', session, '20*'));
-% ephysFolder = [sessionFolderFiles([sessionFolderFiles.isdir] == 1).name];
-% ephysFolder = fullfile(sessionFolder, ephysFolder, 'Record Node 101\');
-ephysFolder = 'Z:\Qianyun\DCN\Data\20220317_000\2022-03-17_14-52-42\Record Node 109';
+sessionFolderFiles = dir(fullfile(rootFolder, 'Data', session, '20*'));
+ephysFolder = [sessionFolderFiles([sessionFolderFiles.isdir] == 1).name];
+ephysFolder = fullfile(sessionFolder, ephysFolder, ['Record Node ', s.node]);
+% ephysFolder = 'Z:\Qianyun\DCN\Data\20220317_000\2022-03-17_14-52-42\Record Node 109';
 sessionEphysInfo.ephysFolder = ephysFolder;
 
 % get source name (e.g. 100, 107) and number of channels

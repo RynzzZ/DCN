@@ -412,3 +412,40 @@ fs = 30000; % sampling frequency
 % save the probe map for NeuroNexus A1x32-linear-5mm-50-177
 save(fullfile(getenv('OBSDATADIR'), 'ephys', 'channelMaps', 'kilosort', 'NeuroNexus_A1x32_Linear.mat'), ...
     'chanMap','channelNum_OpenEphys','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs');
+
+%% Neuronexus A1x32-Linear-10mm-50-177 Optrode Package v2
+
+channelNum_OpenEphys = [8, 32, 7, 30, 6, 31, 4, 20, 13, 29, 5, 21, 12, 28, 15, 22, 11, 18, 2, 27, 14, 23, 10, 19, 3, 26, 16, 24, 9, 17, 1, 25];
+
+% get probe physical layout
+y = 775+50:-25:50; % y coordinates for recording sites (match the sequence of channelNum_OpenEphys)
+x = zeros(32, 1); % x coordinates for recording sites
+siteLocations = [x,y'];
+
+% plot the probe channel map
+figure;
+scatter(siteLocations(:,1), siteLocations(:,2))
+for i = 1:size(siteLocations,1)
+    text(siteLocations(i,1), siteLocations(i,2), [num2str(i) ' (' num2str(channelNum_OpenEphys(i)-1) ')']) 
+end
+
+% save the channel map for kilosort
+kcoords = ones(32, 1); % dim: Nchannels * 1; 
+Nchannels = 32; 
+connected = true(Nchannels, 1); 
+chanMap = 1:Nchannels; 
+chanMap0ind = chanMap - 1; 
+
+xcoords = nan(Nchannels, 1);
+ycoords = nan(Nchannels, 1);
+for i = 1:Nchannels
+    temp = find(channelNum_OpenEphys == i);
+    xcoords(i) = siteLocations(temp, 1);
+    ycoords(i) = siteLocations(temp, 2);
+end
+fs = 30000; % sampling frequency
+
+% save the probe map for NeuroNexus A1x32-linear-5mm-50-177
+save(fullfile(getenv('OBSDATADIR'), 'ephys', 'channelMaps', 'kilosort', 'NeuroNexus_A1x32_Linear_Optrode.mat'), ...
+    'chanMap','channelNum_OpenEphys','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs');
+
